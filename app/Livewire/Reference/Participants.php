@@ -14,7 +14,7 @@ class Participants extends Component
     use WithFileUploads, WithPagination;
 
     public $poster_file;
-    public $id, $participant, $school, $participant_no, $participant_id, $selectedCateg, $password, $gender;
+    public $id, $participant, $school, $participant_no, $participant_id, $selectedCateg, $password, $gender, $group_name;
     public $selectedCategories = [];
     public $poster_photos;
 
@@ -56,6 +56,7 @@ class Participants extends Component
         $participant->participant_no = $this->participant_no;
         $participant->school = $this->school;
         $participant->gender = $this->gender ?: null;
+        $participant->group_name = trim((string) $this->group_name) ?: null;
         $participant->save();
 
         $this->id = null;
@@ -75,6 +76,7 @@ class Participants extends Component
         $this->participant_no = $participant->participant_no;
         $this->school = $participant->school;
         $this->gender = $participant->gender;
+        $this->group_name = $participant->group_name;
         $this->id = $id;
         $this->dispatch('openModal');
     }

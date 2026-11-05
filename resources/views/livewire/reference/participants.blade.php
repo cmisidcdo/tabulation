@@ -36,6 +36,7 @@
                                             <th scope="col">Participant's No.</th>
                                             <th scope="col">Name</th>
                                             <th scope="col">School/Organization</th>
+                                            <th scope="col">Group</th>
                                             <th scope="col">Gender</th>
                                             <th scope="col">Events</th>
                                             <th scope="col">Actions</th>
@@ -55,6 +56,9 @@
                                                 </td>
                                                 <td scope="row">
                                                     {{ $item->school }}
+                                                </td>
+                                                <td scope="row">
+                                                    {{ $item->group_name ?: '—' }}
                                                 </td>
                                                 <td scope="row" class="text-capitalize">
                                                     @if($item->gender)
@@ -105,7 +109,7 @@
                                             </tr>
                                         @empty
                                             <tr class="text-center">
-                                                <td colspan="6">-- NO DATA --</td>
+                                                <td colspan="8">-- NO DATA --</td>
                                             </tr>
                                         @endforelse
                                     </tbody>
@@ -142,6 +146,10 @@
                             <div class="mb-3">
                                 <label for="school" class="form-label">Participant's School/Organization</label>
                                 <input type="text" class="form-control" id="school" wire:model="school" placeholder="Enter participant's school">
+                            </div>
+                            <div class="mb-3">
+                                <label for="group_name" class="form-label">Group / Team <small class="text-muted">(optional, for group events like Storytelling)</small></label>
+                                <input type="text" class="form-control" id="group_name" wire:model="group_name" placeholder="Enter group name (members of the same group must match exactly)">
                             </div>
                             <div class="mb-3">
                                 <label for="gender" class="form-label">Gender <small class="text-muted">(optional, for pageant male/female split)</small></label>

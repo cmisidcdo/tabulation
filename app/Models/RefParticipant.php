@@ -15,6 +15,7 @@ class RefParticipant extends Model
         'participant',
         'school',
         'gender',
+        'group_name',
     ];
     protected $casts = [
         'category' => 'array', // Casts the 'details' column to a PHP array

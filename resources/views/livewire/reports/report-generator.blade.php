@@ -160,6 +160,11 @@
             <div class="col-lg-6">
                 @livewire('reports.component.event-report-by-criteria')
             </div>
+
+            {{-- Group Reports (e.g. Storytelling) --}}
+            <div class="col-lg-12">
+                @livewire('reports.component.group-ranking-report')
+            </div>
         </div>
     </section>
     <div class="modal fade" id="reportModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" role="dialog" aria-labelledby="modalTitleId" aria-hidden="true" wire:ignore.self>

@@ -45,12 +45,23 @@
                                     <ul class="list-group">
                                         @foreach ($suggestions as $item)
                                             <li wire:click="selectSuggestion({{ $item->id }})" class="list-group-item list-group-item-action" style="cursor: pointer">
-                                                {{ $item->participant_no }} - {{ $item->participant }}
+                                                {{ $item->participant_no }} - {{ $item->participant }}@if ($item->group_name) &mdash; <span class="text-muted">{{ $item->group_name }}</span>@endif
                                             </li>
                                         @endforeach
                                     </ul>
                                 @endif
                             </div>
+                            @if ($groups->isNotEmpty())
+                                <div class="col-md-4 mb-3">
+                                    <label for="selectedGroup">GROUP</label>
+                                    <select wire:model.live="selectedGroup" id="selectedGroup" class="form-select">
+                                        <option value="">ALL GROUPS</option>
+                                        @foreach ($groups as $g)
+                                            <option value="{{ $g }}">{{ $g }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
                             @if (auth()->user()->role == 'admin')
                                 <div class="col-md-4 mb-3">
                                     <label for="">JUDGES</label>
@@ -111,7 +122,20 @@
 
                         {{-- Participant scoring cards --}}
                         <div class="scoring-cards">
+                            @php
+                                $groupKey = fn($p) => mb_strtolower(trim((string) $p->group_name));
+                                $groupCounts = $groups->isNotEmpty() ? $participants->countBy($groupKey) : collect();
+                                $prevGroup = null;
+                            @endphp
                             @foreach ($participants as $participant)
+                                @if ($groups->isNotEmpty() && $groupKey($participant) !== $prevGroup)
+                                    @php $prevGroup = $groupKey($participant); @endphp
+                                    <div class="group-section-header d-flex align-items-center gap-2 mb-2 mt-3 px-3 py-2 rounded">
+                                        <i class="bi bi-people-fill"></i>
+                                        <span class="fw-bold text-uppercase">{{ trim((string) $participant->group_name) ?: 'No group' }}</span>
+                                        <span class="small">&middot; {{ $groupCounts[$prevGroup] }} {{ $groupCounts[$prevGroup] == 1 ? 'member' : 'members' }}</span>
+                                    </div>
+                                @endif
                                 <div class="card mb-3 shadow-sm border-0 participant-card"
                                     x-data="{ revealed: true }"
                                     :class="{ 'scores-hidden': !revealed }">
@@ -120,6 +144,9 @@
                                     <div class="card-header d-flex align-items-center justify-content-between py-2 px-3 bg-white border-bottom">
                                         <div class="d-flex align-items-center gap-3">
                                             <span class="badge bg-primary fs-6 px-3 py-2">#{{ $participant->participant_no }}</span>
+                                            @if (trim((string) $participant->group_name) !== '')
+                                                <span class="badge bg-info text-dark text-uppercase">{{ trim($participant->group_name) }}</span>
+                                            @endif
                                             @if ($categoryName?->display_participant || auth()->user()->role == 'admin')
                                                 <span class="fw-bold fs-6">{{ $participant->participant }}</span>
                                             @endif
@@ -346,6 +373,11 @@
         .participant-card {
             border-radius: 10px;
             overflow: hidden;
+        }
+        .group-section-header {
+            background: #e7f1fb;
+            color: #1d4e7a;
+            border-left: 4px solid #266da7;
         }
         .participant-card .card-header {
             background: #f8f9fa;

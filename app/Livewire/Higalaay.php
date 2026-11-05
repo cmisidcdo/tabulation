@@ -24,14 +24,38 @@ class Higalaay extends Component
     public $search, $selectedParticipant, $judge_id, $criteria_id, $base64pdf = '';
     public $showDropdown = false;
     public $suggestions = [];
+    public $selectedGroup = '';
     public $deductionModel, $refDeductions = [];
     public $remarks, $duration, $oldDeductions, $totalDeductions = 0, $deductionSelected;
     public function render()
     {
         $selected = $this->selectedParticipant;
+        $group = trim((string) $this->selectedGroup);
         $participants = RefParticipant::when(!empty($selected), function ($query) use ($selected) {
             $query->where('id', $selected);
+        })->when($group !== '', function ($query) use ($group) {
+            $query->whereRaw('LOWER(TRIM(group_name)) = ?', [mb_strtolower($group)]);
         })->category($this->type)->get();
+
+        // Group events (e.g. Storytelling): list the groups and keep each group's members together.
+        $groups = RefParticipant::category($this->type)
+            ->whereNotNull('group_name')
+            ->where('group_name', '!=', '')
+            ->pluck('group_name')
+            ->map(fn($g) => trim($g))
+            ->unique(fn($g) => mb_strtolower($g))
+            ->sort(fn($a, $b) => strnatcasecmp($a, $b))
+            ->values();
+
+        if ($groups->isNotEmpty()) {
+            $participants = $participants->sort(function ($a, $b) {
+                $ga = trim((string) $a->group_name);
+                $gb = trim((string) $b->group_name);
+                // Members without a group go last
+                if (($ga === '') !== ($gb === '')) return $ga === '' ? 1 : -1;
+                return strnatcasecmp($ga, $gb) ?: strnatcasecmp((string) $a->participant_no, (string) $b->participant_no);
+            })->values();
+        }
 
         $criterias = RefCriteria::where('category', $this->type)->get();
 
@@ -45,13 +69,16 @@ class Higalaay extends Component
         $categoryName = Category::where('category', $this->type)->select('description', 'display_participant')->first();
         $this->calculateTotals();
         $locked = !empty(\App\Models\Setting::get('scoring_locked_' . $this->type));
-        return view('livewire.higalaay', compact('jud', 'judges', 'participants', 'criterias', 'categoryName', 'locked'));
+        return view('livewire.higalaay', compact('jud', 'judges', 'participants', 'criterias', 'categoryName', 'locked', 'groups'));
     }
     public function updatedSearch()
     {
         if (strlen($this->search) > 2) {
 
-            $this->suggestions  = RefParticipant::where('participant', 'like', '%' . $this->search . '%')->category($this->type)
+            $term = '%' . $this->search . '%';
+            $this->suggestions  = RefParticipant::where(function ($q) use ($term) {
+                $q->where('participant', 'like', $term)->orWhere('group_name', 'like', $term);
+            })->category($this->type)
                 ->limit(5) // Limit suggestions
                 ->get();
             $this->showDropdown = true;
