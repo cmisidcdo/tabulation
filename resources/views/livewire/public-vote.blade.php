@@ -87,26 +87,22 @@
     <script>
         {{-- NOTE: this script must START with "const" — Livewire evaluates @script as an expression
              unless it begins with let/const (then it is wrapped in an async function). --}}
+        {{-- Fingerprint uses only signals that stay the same across reloads, rotation and zoom. No canvas
+             drawing: iOS Safari, Brave and Firefox add random noise to it, so the hash changed on every reload. --}}
         const pcFingerprint = async () => {
-            let canvasData = '';
+            let gpu = '';
             try {
-                const c = document.createElement('canvas');
-                c.width = 220; c.height = 40;
-                const ctx = c.getContext('2d');
-                ctx.textBaseline = 'top';
-                ctx.font = '16px Arial';
-                ctx.fillStyle = '#f60'; ctx.fillRect(100, 1, 62, 20);
-                ctx.fillStyle = '#069'; ctx.fillText('PeoplesChoice☆', 2, 15);
-                ctx.fillStyle = 'rgba(102,204,0,0.7)'; ctx.fillText('PeoplesChoice☆', 4, 17);
-                canvasData = c.toDataURL();
+                const gl = document.createElement('canvas').getContext('webgl');
+                const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+                gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
             } catch (e) {}
 
             const parts = [
                 navigator.userAgent, navigator.language, (navigator.languages || []).join(','),
                 Intl.DateTimeFormat().resolvedOptions().timeZone,
-                screen.width + 'x' + screen.height + 'x' + screen.colorDepth, window.devicePixelRatio,
+                Math.min(screen.width, screen.height) + 'x' + Math.max(screen.width, screen.height) + 'x' + screen.colorDepth,
                 navigator.hardwareConcurrency || '', navigator.maxTouchPoints || '', navigator.platform || '',
-                canvasData,
+                gpu,
             ].join('||');
 
             try {

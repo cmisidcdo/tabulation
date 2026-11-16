@@ -38,14 +38,11 @@ class PublicVote extends Component
     {
         $this->slug = $slug;
 
-        // The device token is issued server-side on the first page load (cookie), so voting
-        // never depends on the browser script having finished.
-        $this->deviceToken = $this->validToken(request()->cookie(self::COOKIE)) ?: (string) Str::uuid();
-        Cookie::queue(Cookie::forever(self::COOKIE, $this->deviceToken));
-
-        if ($vote = PeoplesChoiceService::voteForDevice($slug, $this->deviceToken)) {
-            $this->votedFor = $vote->choice_name;
-        }
+        // The device token is issued server-side on the first page load, so voting never depends
+        // on the browser script having finished. It is remembered in two independent places:
+        // our own long-lived cookie and the Laravel session (whose cookie must work for Livewire
+        // to work at all, so it survives even if a proxy/browser drops the pc_device cookie).
+        $this->adoptToken([request()->cookie(self::COOKIE), session(self::COOKIE)]);
     }
 
     /**
@@ -55,16 +52,16 @@ class PublicVote extends Component
     public function initDevice($localToken = null, $fingerprint = null): ?string
     {
         $this->setFingerprint($fingerprint);
-        $localToken = $this->validToken($localToken);
 
-        // Cookie was cleared but localStorage still remembers this device: restore the old identity.
-        if ($localToken && $localToken !== $this->deviceToken && $this->votedFor === null) {
-            $this->deviceToken = $localToken;
-            Cookie::queue(Cookie::forever(self::COOKIE, $localToken));
+        // Cookie/session were lost but localStorage still remembers this device: restore the old identity.
+        if ($this->votedFor === null) {
+            $this->adoptToken([$this->deviceToken, $localToken]);
+        }
 
-            if ($vote = PeoplesChoiceService::voteForDevice($this->slug, $localToken)) {
-                $this->votedFor = $vote->choice_name;
-            }
+        // Every stored identity is gone (cleared site data, private tab...), but this browser on
+        // this network already voted: show "already voted" instead of the list.
+        if ($this->votedFor === null && PeoplesChoiceService::fingerprintVoted($this->slug, $this->fingerprint, request()->ip())) {
+            $this->votedFor = '';
         }
 
         return $this->deviceToken;
@@ -74,14 +71,18 @@ class PublicVote extends Component
     {
         $this->error = null;
 
+        // This page already knows the device voted (e.g. a stale tab): never cast a second vote.
+        if ($this->votedFor !== null) {
+            return;
+        }
+
         // Fingerprint also arrives with the vote, in case initDevice hadn't completed yet.
         if (!$this->fingerprint) {
             $this->setFingerprint($fingerprint);
         }
 
         if (!$this->deviceToken) {
-            $this->deviceToken = (string) Str::uuid();
-            Cookie::queue(Cookie::forever(self::COOKIE, $this->deviceToken));
+            $this->adoptToken([]);
         }
 
         $limiterKey = 'peoples-choice:' . $this->slug . ':' . request()->ip();
@@ -117,6 +118,35 @@ class PublicVote extends Component
                 // Usually the admin switched group/participant mode while this page was open.
                 $this->error = 'That choice is no longer available. Please choose again.';
         }
+    }
+
+    /**
+     * Use the first candidate token that already has a vote in this event, else the first valid one,
+     * else a new token. Saves it to the cookie and the session and loads the device's vote.
+     */
+    private function adoptToken(array $candidates): void
+    {
+        $candidates = array_values(array_unique(array_filter(array_map(fn($t) => $this->validToken($t), $candidates))));
+
+        $token = null;
+        $vote  = null;
+        foreach ($candidates as $candidate) {
+            if ($vote = PeoplesChoiceService::voteForDevice($this->slug, $candidate)) {
+                $token = $candidate;
+                break;
+            }
+        }
+        $token ??= $candidates[0] ?? (string) Str::uuid();
+
+        $this->deviceToken = $token;
+        $this->votedFor    = $vote?->choice_name;
+        $this->remember($token);
+    }
+
+    private function remember(string $token): void
+    {
+        Cookie::queue(Cookie::forever(self::COOKIE, $token));
+        session()->put(self::COOKIE, $token);
     }
 
     private function setFingerprint($fingerprint): void

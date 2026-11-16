@@ -133,6 +133,55 @@ class PeoplesChoiceTest extends TestCase
         $this->assertSame('abcdef0123456789', PublicVoteModel::first()->fingerprint);
     }
 
+    public function test_reload_without_cookie_or_local_storage_is_recognised_via_session(): void
+    {
+        PC::setOpen($this->slug, true);
+
+        Livewire::test(PublicVote::class, ['slug' => $this->slug])
+            ->call('vote', 'group a')
+            ->assertSet('votedFor', 'Group A');
+
+        // Reload where the pc_device cookie was dropped and localStorage is unavailable:
+        // the session still knows the device, so the list is not shown again.
+        Livewire::test(PublicVote::class, ['slug' => $this->slug])
+            ->assertSet('votedFor', 'Group A')
+            ->assertDontSee('Submit Vote')
+            ->call('vote', 'group b');
+
+        $this->assertSame(1, PublicVoteModel::count());
+    }
+
+    public function test_reload_with_all_storage_cleared_shows_already_voted_by_fingerprint(): void
+    {
+        PC::setOpen($this->slug, true);
+
+        Livewire::test(PublicVote::class, ['slug' => $this->slug])
+            ->call('vote', 'group a', 'abcdef0123456789')
+            ->assertSet('votedFor', 'Group A');
+
+        session()->flush(); // cookie, session and localStorage all gone
+
+        Livewire::test(PublicVote::class, ['slug' => $this->slug])
+            ->assertSet('votedFor', null)
+            ->call('initDevice', null, 'abcdef0123456789')
+            ->assertSet('votedFor', '')
+            ->assertSee('already been recorded');
+
+        $this->assertSame(1, PublicVoteModel::count());
+    }
+
+    public function test_local_storage_token_that_voted_wins_over_a_fresh_cookie(): void
+    {
+        PC::setOpen($this->slug, true);
+        $this->vote('group c', 'token-local-aaaaaaaaaaaaaa');
+
+        Livewire::test(PublicVote::class, ['slug' => $this->slug])
+            ->call('initDevice', 'token-local-aaaaaaaaaaaaaa', null)
+            ->assertSet('deviceToken', 'token-local-aaaaaaaaaaaaaa')
+            ->assertSet('votedFor', 'Group C')
+            ->assertReturned('token-local-aaaaaaaaaaaaaa');
+    }
+
     public function test_participant_mode_votes_for_individuals(): void
     {
         $this->assertTrue(PC::setMode($this->slug, PC::MODE_PARTICIPANT));

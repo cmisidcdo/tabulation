@@ -180,7 +180,7 @@ class PeoplesChoiceService
 
         // Second line of defence: same browser fingerprint from the same network already voted
         // (e.g. cookies + site data cleared, or a private tab on the same phone).
-        if ($fingerprint && PublicVote::category($slug)->where('fingerprint', $fingerprint)->where('ip', $ip)->exists()) {
+        if (self::fingerprintVoted($slug, $fingerprint, $ip)) {
             return self::ALREADY_VOTED;
         }
 
@@ -196,11 +196,22 @@ class PeoplesChoiceService
                 'user_agent'   => $userAgent ? mb_substr($userAgent, 0, 1000) : null,
             ]);
         } catch (QueryException $e) {
-            // Unique (category, device_token) hit by a double-submit race.
-            return self::ALREADY_VOTED;
+            // Unique (category, device_token) hit by a double-submit race. Anything else (e.g. a
+            // migration not run on the server) is a real error and must not look like "already voted".
+            if (str_starts_with((string) $e->getCode(), '23')) {
+                return self::ALREADY_VOTED;
+            }
+            throw $e;
         }
 
         return self::OK;
+    }
+
+    /** Has this browser fingerprint already voted in this event from the same IP? */
+    public static function fingerprintVoted(string $slug, ?string $fingerprint, ?string $ip): bool
+    {
+        return $fingerprint
+            && PublicVote::category($slug)->where('fingerprint', $fingerprint)->where('ip', $ip)->exists();
     }
 
     /* --------------------------------- Results -------------------------------- */
