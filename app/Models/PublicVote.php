@@ -19,6 +19,10 @@ class PublicVote extends Model
         'fingerprint',
         'ip',
         'user_agent',
+        'latitude',
+        'longitude',
+        'location_accuracy',
+        'distance_m',
     ];
 
     public function scopeCategory($query, $category)

@@ -1,4 +1,31 @@
-<div class="pc-wrap" x-data="{ selected: null, selectedName: '', q: '' }">
+<div class="pc-wrap" x-data="{
+    selected: null, selectedName: '', q: '', locating: false, geoError: '',
+    submit(geo) {
+        if (!this.selected) return;
+        const note = geo ? '\nYour location will be checked (voting is only allowed at the venue).' : '';
+        if (!confirm('Submit your vote for ' + this.selectedName + '?\nYou cannot change it later.' + note)) return;
+        geo ? this.locateAndVote() : this.$wire.vote(this.selected, window.pcFp || null);
+    },
+    locateAndVote() {
+        this.geoError = '';
+        if (!window.isSecureContext || !navigator.geolocation) {
+            this.geoError = 'This browser cannot share your location on this link. Open the voting link with https:// in Chrome or Safari.';
+            return;
+        }
+        this.locating = true;
+        navigator.geolocation.getCurrentPosition(pos => {
+            this.locating = false;
+            this.$wire.vote(this.selected, window.pcFp || null, {
+                lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy,
+            });
+        }, err => {
+            this.locating = false;
+            this.geoError = err.code === 1
+                ? 'Location access was blocked. Allow location for this site (tap the icon beside the address bar, or turn on Location in your phone settings), then tap Try Again.'
+                : 'Could not get your location. Make sure Location/GPS is on, move near a window or outdoors, then tap Try Again.';
+        }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    },
+}">
     <header class="pc-header text-center">
         <img src="{{ asset('img/cdo-seal.png') }}" alt="" class="pc-logo">
         <div class="pc-kicker">People's Choice Award</div>
@@ -32,9 +59,26 @@
     @else
         <p class="text-center pc-instructions">Tap your favorite {{ $target }}, then press <strong>Submit Vote</strong>.<br>You can vote <strong>once</strong> on this device.</p>
 
-        @if ($error)
-            <div class="alert alert-danger py-2 text-center">{{ $error }}</div>
+        @if ($geoRequired)
+            <div class="pc-geo-note">
+                <i class="bi bi-geo-alt-fill"></i>
+                Voting is only allowed <strong>at the venue</strong>. Your location will be checked when you submit, so allow location access when asked.
+            </div>
         @endif
+
+        @if ($error)
+            <div class="alert alert-danger py-2 text-center">
+                {{ $error }}
+                @if ($geoRequired)
+                    <div class="mt-2"><button type="button" class="btn btn-sm btn-danger" x-on:click="locateAndVote()" :disabled="!selected || locating">Try Again</button></div>
+                @endif
+            </div>
+        @endif
+
+        <div class="alert alert-warning py-2 text-center" x-show="geoError" x-cloak>
+            <span x-text="geoError"></span>
+            <div class="mt-2"><button type="button" class="btn btn-sm btn-warning" x-on:click="locateAndVote()" :disabled="!selected || locating">Try Again</button></div>
+        </div>
 
         @if (count($choices) > 8)
             <div class="pc-search">
@@ -68,12 +112,14 @@
 
         <div class="pc-submit-bar">
             <button type="button" class="btn btn-lg w-100 pc-submit"
-                :disabled="!selected"
+                :disabled="!selected || locating"
                 wire:loading.attr="disabled" wire:target="vote"
-                x-on:click="if (selected && confirm('Submit your vote for ' + selectedName + '?\nYou cannot change it later.')) { $wire.vote(selected, window.pcFp || null) }">
+                data-geo="{{ $geoRequired ? 1 : 0 }}"
+                x-on:click="submit($el.dataset.geo === '1')">
                 <span wire:loading.remove wire:target="vote">
                     <span x-show="!selected">Select a {{ $target }}</span>
-                    <span x-show="selected" x-cloak>Submit Vote</span>
+                    <span x-show="selected && !locating" x-cloak>Submit Vote</span>
+                    <span x-show="locating" x-cloak><span class="spinner-border spinner-border-sm"></span> Checking your location...</span>
                 </span>
                 <span wire:loading wire:target="vote">
                     <span class="spinner-border spinner-border-sm"></span> Submitting...

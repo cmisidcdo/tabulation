@@ -67,7 +67,7 @@ class PublicVote extends Component
         return $this->deviceToken;
     }
 
-    public function vote($choiceKey, $fingerprint = null): void
+    public function vote($choiceKey, $fingerprint = null, $location = null): void
     {
         $this->error = null;
 
@@ -93,16 +93,17 @@ class PublicVote extends Component
         RateLimiter::hit($limiterKey, 60);
 
         $choiceKey = is_string($choiceKey) ? mb_substr($choiceKey, 0, 255) : '';
-        $status    = PeoplesChoiceService::castVote(
+        $result    = PeoplesChoiceService::castVoteDetailed(
             $this->slug,
             $choiceKey,
             $this->deviceToken,
             $this->fingerprint,
             request()->ip(),
-            request()->userAgent()
+            request()->userAgent(),
+            $location
         );
 
-        switch ($status) {
+        switch ($result['status']) {
             case PeoplesChoiceService::OK:
                 $this->votedFor = PeoplesChoiceService::voteForDevice($this->slug, $this->deviceToken)?->choice_name ?? '';
                 break;
@@ -113,6 +114,13 @@ class PublicVote extends Component
                 break;
             case PeoplesChoiceService::CLOSED:
                 $this->error = 'Voting is closed.';
+                break;
+            case PeoplesChoiceService::NEED_LOCATION:
+                $this->error = 'Voting is only allowed at the venue. Turn on Location for this browser, allow access, then try again.';
+                break;
+            case PeoplesChoiceService::OUTSIDE_AREA:
+                $this->error = 'You seem to be about ' . PeoplesChoiceService::formatDistance((int) $result['distance'])
+                    . ' away from the venue. Voting is only allowed at the event venue.';
                 break;
             default:
                 // Usually the admin switched group/participant mode while this page was open.
@@ -170,6 +178,7 @@ class PublicVote extends Component
             'mode'     => $mode,
             'target'   => PeoplesChoiceService::targetLabel($mode),
             'choices'  => PeoplesChoiceService::choices($this->slug, $mode),
+            'geoRequired' => PeoplesChoiceService::geofence($this->slug) !== null,
         ]);
     }
 }

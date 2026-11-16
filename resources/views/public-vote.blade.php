@@ -25,6 +25,11 @@
         .pc-kicker { font-size: .8rem; letter-spacing: .18em; text-transform: uppercase; color: #ffd76a; font-weight: 700; }
         .pc-title { font-size: 1.5rem; font-weight: 800; text-transform: uppercase; margin: 4px 0 0; }
         .pc-instructions { color: #fff; font-size: .95rem; }
+        .pc-geo-note {
+            background: rgba(255, 215, 106, .16); border: 1px solid rgba(255, 215, 106, .55); color: #fff;
+            border-radius: 12px; padding: 10px 14px; font-size: .9rem; margin-bottom: 12px;
+        }
+        .pc-geo-note .bi { color: #ffd76a; }
 
         .pc-card { background: #fff; border-radius: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, .12); padding: 24px; }
         .pc-state-icon { font-size: 3.5rem; line-height: 1; margin-bottom: 12px; }

@@ -35,7 +35,11 @@
         <div class="qr"><img src="{{ $qr }}" alt="QR code for {{ $voteUrl }}"></div>
 
         <div class="cta">Scan with your phone camera to vote!</div>
-        <div class="steps">1. Scan the QR code &nbsp; 2. Choose your favorite {{ $target }} &nbsp; 3. Tap Submit Vote<br>One vote per device.</div>
+        <div class="steps">1. Scan the QR code &nbsp; 2. Choose your favorite {{ $target }} &nbsp; 3. Tap Submit Vote<br>One vote per device.
+            @if ($geofence)
+                <br><strong>Vote here at the venue &mdash; allow location access when asked.</strong>
+            @endif
+        </div>
         <div class="url">{{ $voteUrl }}</div>
 
         <button class="print-btn" onclick="window.print()">Print</button>

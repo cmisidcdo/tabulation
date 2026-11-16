@@ -21,6 +21,13 @@ class PeoplesChoiceService
     public const CLOSED        = 'closed';
     public const ALREADY_VOTED = 'already_voted';
     public const INVALID       = 'invalid';
+    public const NEED_LOCATION = 'need_location';
+    public const OUTSIDE_AREA  = 'outside_area';
+
+    /** Extra meters allowed for GPS inaccuracy, at most (so a vague fix can't stretch the area much). */
+    public const MAX_ACCURACY_TOLERANCE = 100;
+    public const MIN_RADIUS = 20;
+    public const MAX_RADIUS = 5000;
 
     public const MODE_GROUP       = 'group';
     public const MODE_PARTICIPANT = 'participant';
@@ -76,6 +83,123 @@ class PeoplesChoiceService
     public static function targetLabel(string $mode): string
     {
         return $mode === self::MODE_PARTICIPANT ? 'participant' : 'group';
+    }
+
+    /* -------------------------------- Geofence -------------------------------- */
+
+    /** Saved geofence settings (even when disabled), for the admin form. */
+    public static function geofenceSettings(string $slug): array
+    {
+        $saved = json_decode((string) Setting::get('peoples_choice_geo_' . $slug, ''), true);
+        $saved = is_array($saved) ? $saved : [];
+
+        return [
+            'enabled' => !empty($saved['enabled']),
+            'lat'     => isset($saved['lat']) && is_numeric($saved['lat']) ? (float) $saved['lat'] : null,
+            'lng'     => isset($saved['lng']) && is_numeric($saved['lng']) ? (float) $saved['lng'] : null,
+            'radius'  => isset($saved['radius']) && is_numeric($saved['radius']) ? (int) $saved['radius'] : 150,
+        ];
+    }
+
+    /** The active geofence ({lat, lng, radius}), or null when voting is not location-restricted. */
+    public static function geofence(string $slug): ?array
+    {
+        $geo = self::geofenceSettings($slug);
+        return $geo['enabled'] && $geo['lat'] !== null && $geo['lng'] !== null ? $geo : null;
+    }
+
+    /**
+     * Validate and save the geofence. Returns an error message, or null on success.
+     */
+    public static function setGeofence(string $slug, bool $enabled, $lat, $lng, $radius): ?string
+    {
+        $lat    = is_numeric($lat) ? (float) $lat : null;
+        $lng    = is_numeric($lng) ? (float) $lng : null;
+        $radius = is_numeric($radius) ? (int) round((float) $radius) : null;
+
+        if (($lat === null) !== ($lng === null)) {
+            return 'Enter both latitude and longitude.';
+        }
+        if ($lat !== null && ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180)) {
+            return 'Latitude must be between -90 and 90, and longitude between -180 and 180.';
+        }
+        if ($radius === null || $radius < self::MIN_RADIUS || $radius > self::MAX_RADIUS) {
+            return 'Radius must be between ' . self::MIN_RADIUS . ' and ' . number_format(self::MAX_RADIUS) . ' meters.';
+        }
+        if ($enabled && $lat === null) {
+            return 'Set the venue location first (tap "Use my current location" at the venue).';
+        }
+
+        Setting::set(
+            'peoples_choice_geo_' . $slug,
+            json_encode(['enabled' => $enabled, 'lat' => $lat, 'lng' => $lng, 'radius' => $radius]),
+            "People's Choice voting area (geofence) for " . $slug
+        );
+
+        return null;
+    }
+
+    /** Great-circle distance in meters (haversine). */
+    public static function distanceMeters(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadius = 6371000;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return $earthRadius * 2 * atan2(sqrt($a), sqrt(1 - $a));
+    }
+
+    /** A location sent by the browser, cleaned up: {lat, lng, accuracy}, or null if unusable. */
+    public static function cleanLocation($location): ?array
+    {
+        if (!is_array($location) || !isset($location['lat'], $location['lng'])
+            || !is_numeric($location['lat']) || !is_numeric($location['lng'])) {
+            return null;
+        }
+
+        $lat = (float) $location['lat'];
+        $lng = (float) $location['lng'];
+        if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+            return null;
+        }
+
+        $accuracy = isset($location['accuracy']) && is_numeric($location['accuracy']) ? max(0.0, (float) $location['accuracy']) : null;
+
+        return ['lat' => $lat, 'lng' => $lng, 'accuracy' => $accuracy];
+    }
+
+    /**
+     * Check a location against the event's geofence.
+     * Inside when distance <= radius + min(accuracy, MAX_ACCURACY_TOLERANCE).
+     *
+     * @return array{status: string, distance: ?int}
+     */
+    public static function checkLocation(string $slug, $location): array
+    {
+        $geo = self::geofence($slug);
+        if (!$geo) {
+            return ['status' => self::OK, 'distance' => null];
+        }
+
+        $location = self::cleanLocation($location);
+        if (!$location) {
+            return ['status' => self::NEED_LOCATION, 'distance' => null];
+        }
+
+        $distance  = self::distanceMeters($geo['lat'], $geo['lng'], $location['lat'], $location['lng']);
+        $tolerance = min($location['accuracy'] ?? 0, self::MAX_ACCURACY_TOLERANCE);
+
+        return [
+            'status'   => $distance <= $geo['radius'] + $tolerance ? self::OK : self::OUTSIDE_AREA,
+            'distance' => (int) round($distance),
+        ];
+    }
+
+    /** "850 m" / "2.4 km" */
+    public static function formatDistance(int $meters): string
+    {
+        return $meters < 1000 ? $meters . ' m' : rtrim(rtrim(number_format($meters / 1000, 1), '0'), '.') . ' km';
     }
 
     /* -------------------------------- Choices --------------------------------- */
@@ -162,8 +286,26 @@ class PeoplesChoiceService
     /**
      * Record one vote. Returns one of the status constants.
      */
-    public static function castVote(string $slug, string $choiceKey, string $token, ?string $fingerprint, ?string $ip, ?string $userAgent): string
+    public static function castVote(string $slug, string $choiceKey, string $token, ?string $fingerprint, ?string $ip, ?string $userAgent, $location = null): string
     {
+        return self::castVoteDetailed($slug, $choiceKey, $token, $fingerprint, $ip, $userAgent, $location)['status'];
+    }
+
+    /**
+     * Same as castVote(), also returning the distance from the venue when a geofence is on.
+     *
+     * @return array{status: string, distance: ?int}
+     */
+    public static function castVoteDetailed(string $slug, string $choiceKey, string $token, ?string $fingerprint, ?string $ip, ?string $userAgent, $location = null): array
+    {
+        $status = self::recordVote($slug, $choiceKey, $token, $fingerprint, $ip, $userAgent, $location, $distance);
+        return ['status' => $status, 'distance' => $distance];
+    }
+
+    private static function recordVote(string $slug, string $choiceKey, string $token, ?string $fingerprint, ?string $ip, ?string $userAgent, $location, ?int &$distance): string
+    {
+        $distance = null;
+
         if (!self::isOpen($slug)) {
             return self::CLOSED;
         }
@@ -184,8 +326,21 @@ class PeoplesChoiceService
             return self::ALREADY_VOTED;
         }
 
+        // Geofence: only phones at the venue may vote (checked after the "already voted" checks,
+        // so a device that voted still gets its thank-you screen).
+        $geoCheck = self::checkLocation($slug, $location);
+        $distance = $geoCheck['distance'];
+        if ($geoCheck['status'] !== self::OK) {
+            return $geoCheck['status'];
+        }
+        $location = self::geofence($slug) ? self::cleanLocation($location) : null;
+
         try {
             PublicVote::create([
+                'latitude'          => $location['lat'] ?? null,
+                'longitude'         => $location['lng'] ?? null,
+                'location_accuracy' => $location['accuracy'] ?? null,
+                'distance_m'        => $location ? $distance : null,
                 'category'     => $slug,
                 'mode'         => $mode,
                 'choice_key'   => $choiceKey,
@@ -272,6 +427,7 @@ class PeoplesChoiceService
             'total'               => $total,
             'winners'             => $winners,
             'shared_fingerprints' => $sharedFingerprints,
+            'geofence'            => self::geofence($slug),
         ];
     }
 

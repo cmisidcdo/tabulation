@@ -34,6 +34,7 @@ class PeoplesChoiceLed extends Component
             'target'     => PeoplesChoiceService::targetLabel(PeoplesChoiceService::mode($this->slug)),
             'winners'    => $isRevealed ? PeoplesChoiceService::tally($this->slug)['winners'] : [],
             'voteUrl'    => $voteUrl,
+            'geofence'   => PeoplesChoiceService::geofence($this->slug),
             'qrSvg'      => !$isRevealed && $isOpen ? PeoplesChoiceService::qrSvg($voteUrl) : null,
         ]);
     }

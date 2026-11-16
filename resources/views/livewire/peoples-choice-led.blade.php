@@ -23,7 +23,12 @@
             <div class="pcl-vote-text">
                 <div class="pcl-cta">Scan to vote!</div>
                 <div class="pcl-steps">Open your phone camera, scan the code,<br>and pick your favorite {{ $target }}.</div>
-                <div class="pcl-steps pcl-small">One vote per device.</div>
+                <div class="pcl-steps pcl-small">
+                    One vote per device.
+                    @if ($geofence)
+                        <br>Vote here at the venue &mdash; allow location access.
+                    @endif
+                </div>
             </div>
         </div>
     @else

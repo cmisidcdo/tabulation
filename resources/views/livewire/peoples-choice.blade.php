@@ -70,6 +70,89 @@
                                 </button>
                             </div>
 
+                            {{-- Geofence: only phones near the venue can vote --}}
+                            <div class="border rounded p-3 mb-3" x-data="{
+                                locating: false, fixNote: '', fixError: '',
+                                locate() {
+                                    this.fixNote = ''; this.fixError = '';
+                                    if (!window.isSecureContext || !navigator.geolocation) {
+                                        this.fixError = 'Location needs an https:// page. Type the coordinates instead, or open this page over https.';
+                                        return;
+                                    }
+                                    this.locating = true;
+                                    navigator.geolocation.getCurrentPosition(pos => {
+                                        this.locating = false;
+                                        this.$wire.geoLat = pos.coords.latitude.toFixed(7);
+                                        this.$wire.geoLng = pos.coords.longitude.toFixed(7);
+                                        this.fixNote = 'Location found (accurate to about ±' + Math.round(pos.coords.accuracy) + ' m). Press Save.';
+                                    }, err => {
+                                        this.locating = false;
+                                        this.fixError = err.code === 1 ? 'Location permission was blocked for this site.' : 'Could not get a location fix. Try again near a window or outdoors.';
+                                    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+                                },
+                            }">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label fw-semibold mb-0" for="pcGeoEnabled">
+                                        <i class="bi bi-geo-alt-fill text-danger"></i> Voting area (geofence)
+                                    </label>
+                                    @if ($geofence)
+                                        <span class="badge bg-success">ON &middot; {{ $geofence['radius'] }} m</span>
+                                    @else
+                                        <span class="badge bg-secondary">OFF</span>
+                                    @endif
+                                </div>
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="pcGeoEnabled" wire:model="geoEnabled">
+                                    <label class="form-check-label small" for="pcGeoEnabled">Only allow votes from phones at the venue</label>
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Latitude" wire:model="geoLat">
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="text" inputmode="decimal" class="form-control form-control-sm" placeholder="Longitude" wire:model="geoLng">
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">Radius</span>
+                                            <input type="number" min="20" max="5000" step="10" class="form-control" wire:model="geoRadius">
+                                            <span class="input-group-text">meters</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" x-on:click="locate()" :disabled="locating">
+                                        <span x-show="!locating"><i class="bi bi-crosshair"></i> Use my current location</span>
+                                        <span x-show="locating" x-cloak><span class="spinner-border spinner-border-sm"></span> Locating...</span>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-primary" wire:click="saveGeofence">
+                                        <i class="bi bi-save"></i> Save
+                                    </button>
+                                    @if (is_numeric($geoLat) && is_numeric($geoLng))
+                                        <a class="btn btn-sm btn-link px-1" target="_blank" rel="noopener"
+                                            href="https://www.google.com/maps?q={{ $geoLat }},{{ $geoLng }}">Check on Google Maps</a>
+                                    @endif
+                                </div>
+                                <div class="small text-success mt-2" x-show="fixNote" x-text="fixNote" x-cloak></div>
+                                <div class="small text-danger mt-2" x-show="fixError" x-text="fixError" x-cloak></div>
+                                @if (session('pc_geo_error'))
+                                    <div class="alert alert-danger small py-1 px-2 mt-2 mb-0">{{ session('pc_geo_error') }}</div>
+                                @endif
+                                @if (session('pc_geo_message'))
+                                    <div class="alert alert-success small py-1 px-2 mt-2 mb-0">{{ session('pc_geo_message') }}</div>
+                                @endif
+                                <div class="form-text">
+                                    Stand at the venue, tap <em>Use my current location</em>, then Save. Use 100–200 m indoors, because
+                                    GPS can be off by tens of meters. Phones only share location on <strong>https://</strong> links.
+                                </div>
+                                @if (str_starts_with($voteUrl, 'http://') && $geofence)
+                                    <div class="alert alert-warning small py-1 px-2 mt-2 mb-0">
+                                        The voting link is <strong>http://</strong>, so phones will refuse to share their location and
+                                        nobody will be able to vote. Use the https:// address of the server.
+                                    </div>
+                                @endif
+                            </div>
+
                             <div class="text-center">
                                 <div class="pc-admin-qr mx-auto mb-2">{!! $qrSvg !!}</div>
                                 <div class="small text-break mb-2">

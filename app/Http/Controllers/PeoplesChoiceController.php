@@ -29,7 +29,8 @@ class PeoplesChoiceController extends Controller
         $voteUrl  = PeoplesChoiceService::voteUrl($slug);
         $qr       = PeoplesChoiceService::qrPngDataUri($voteUrl, 16);
         $target   = PeoplesChoiceService::targetLabel(PeoplesChoiceService::mode($slug));
-        return view('peoples-choice-poster', compact('category', 'voteUrl', 'qr', 'target'));
+        $geofence = PeoplesChoiceService::geofence($slug);
+        return view('peoples-choice-poster', compact('category', 'voteUrl', 'qr', 'target', 'geofence'));
     }
 
     /** Admin: download the QR code as a PNG file. */

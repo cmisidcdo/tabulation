@@ -70,6 +70,9 @@
             </div>
             <div style="font-size:10pt;color:#888;margin-top:4px;">
                 Audience voting via QR code &mdash; one vote per device &mdash; {{ number_format($tally['total']) }} total vote(s)
+                @if (!empty($tally['geofence']))
+                    <br>Voting limited to phones within {{ $tally['geofence']['radius'] }} m of the venue (location checked)
+                @endif
             </div>
         </div>
 

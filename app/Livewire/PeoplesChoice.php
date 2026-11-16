@@ -17,9 +17,62 @@ class PeoplesChoice extends Component
     public $selectedCategory = '';
     public $base64pdf;
 
+    // Geofence form (voting only allowed near the venue)
+    public $geoEnabled = false;
+    public $geoLat = '';
+    public $geoLng = '';
+    public $geoRadius = 150;
+
     public function mount(): void
     {
         abort_unless(auth()->user()?->role === 'admin', 403);
+    }
+
+    public function updatedSelectedCategory(): void
+    {
+        $this->loadGeofence();
+    }
+
+    private function loadGeofence(): void
+    {
+        $slug = $this->slug();
+        $geo  = $slug ? PeoplesChoiceService::geofenceSettings($slug) : ['enabled' => false, 'lat' => null, 'lng' => null, 'radius' => 150];
+
+        $this->geoEnabled = $geo['enabled'];
+        $this->geoLat     = $geo['lat'] ?? '';
+        $this->geoLng     = $geo['lng'] ?? '';
+        $this->geoRadius  = $geo['radius'];
+    }
+
+    public function saveGeofence(): void
+    {
+        $slug = $this->slug();
+        if (!$slug) {
+            return;
+        }
+
+        $error = PeoplesChoiceService::setGeofence(
+            $slug,
+            (bool) $this->geoEnabled,
+            $this->blankToNull($this->geoLat),
+            $this->blankToNull($this->geoLng),
+            $this->geoRadius
+        );
+
+        if ($error) {
+            session()->flash('pc_geo_error', $error);
+            return;
+        }
+
+        $this->loadGeofence();
+        session()->flash('pc_geo_message', $this->geoEnabled
+            ? 'Voting area saved. Only phones within ' . $this->geoRadius . ' m of the venue can vote.'
+            : 'Voting area saved. Location check is OFF — anyone with the link can vote.');
+    }
+
+    private function blankToNull($value)
+    {
+        return is_string($value) && trim($value) === '' ? null : $value;
     }
 
     public function toggleOpen(): void
@@ -106,6 +159,7 @@ class PeoplesChoice extends Component
                 'displayUrl' => route('display_peoples_choice', $slug),
                 'posterUrl'  => route('peoples-choice.poster', $slug),
                 'qrPngUrl'   => route('peoples-choice.qr', $slug),
+                'geofence'   => $tally['geofence'],
             ];
         }
 
