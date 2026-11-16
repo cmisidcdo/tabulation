@@ -4,6 +4,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LogsController;
 use App\Http\Controllers\OralController;
+use App\Http\Controllers\PeoplesChoiceController;
 use App\Http\Controllers\PosterController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\Reference\CriteriaController;
@@ -73,7 +74,16 @@ Route::group(['middleware' => ['auth']], function () {
 
     //HIGALAAY
     Route::get('/show-event/{slug}', [CategoryController::class, 'show'])->name('event');
+
+    //PEOPLE'S CHOICE AWARD (admin)
+    Route::view('/peoples-choice', 'peoples-choice')->name('peoples-choice');
+    Route::get('/peoples-choice/{slug}/poster', [PeoplesChoiceController::class, 'poster'])->name('peoples-choice.poster');
+    Route::get('/peoples-choice/{slug}/qr.png', [PeoplesChoiceController::class, 'qrPng'])->name('peoples-choice.qr');
 });
+
+// -----------------------------------PEOPLE'S CHOICE PUBLIC VOTING (no login)-----------------------------------
+Route::get('/vote/{slug}', [PeoplesChoiceController::class, 'vote'])->name('vote');
+Route::get('/display_peoples_choice/{slug}', [PeoplesChoiceController::class, 'led'])->name('display_peoples_choice');
 
 
 // -----------------------------------LED WALL DISPLAY-----------------------------------

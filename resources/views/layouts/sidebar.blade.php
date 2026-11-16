@@ -41,6 +41,12 @@
                     <span>Report Generator</span>
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link {{ Route::currentRouteName() == 'peoples-choice' ? '' : 'collapsed' }}" href="{{ route('peoples-choice') }}">
+                    <i class="bi bi-heart"></i>
+                    <span>People's Choice Award</span>
+                </a>
+            </li>
             <hr>
             <li class="nav-item">
                 <a class="nav-link {{ request()->is('reference*') ? '' : 'collapsed' }}" data-bs-target="#components-nav" data-bs-toggle="collapse" href="#">
