@@ -31,6 +31,7 @@ class PeoplesChoiceLed extends Component
             'category'   => Category::where('category', $this->slug)->first(),
             'isRevealed' => $isRevealed,
             'isOpen'     => $isOpen,
+            'target'     => PeoplesChoiceService::targetLabel(PeoplesChoiceService::mode($this->slug)),
             'winners'    => $isRevealed ? PeoplesChoiceService::tally($this->slug)['winners'] : [],
             'voteUrl'    => $voteUrl,
             'qrSvg'      => !$isRevealed && $isOpen ? PeoplesChoiceService::qrSvg($voteUrl) : null,

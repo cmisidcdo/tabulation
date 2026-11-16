@@ -12,8 +12,8 @@ use chillerlan\QRCode\QROptions;
 use Illuminate\Database\QueryException;
 
 /**
- * People's Choice Award: audience votes (one per device) for a group in a group event
- * such as Storytelling. Completely separate from the judges' tabulation.
+ * People's Choice Award: audience votes (one per device) for a group or an individual
+ * participant of an event. Completely separate from the judges' tabulation.
  */
 class PeoplesChoiceService
 {
@@ -21,6 +21,10 @@ class PeoplesChoiceService
     public const CLOSED        = 'closed';
     public const ALREADY_VOTED = 'already_voted';
     public const INVALID       = 'invalid';
+
+    public const MODE_GROUP       = 'group';
+    public const MODE_PARTICIPANT = 'participant';
+    public const MODES            = [self::MODE_GROUP, self::MODE_PARTICIPANT];
 
     /* ------------------------------ Voting state ------------------------------ */
 
@@ -44,7 +48,37 @@ class PeoplesChoiceService
         Setting::set('peoples_choice_revealed_' . $slug, $revealed ? '1' : '0', "People's Choice winner revealed for " . $slug);
     }
 
-    /* --------------------------------- Groups --------------------------------- */
+    /* ---------------------------------- Mode ---------------------------------- */
+
+    /** What the audience votes for in this event: 'group' (default) or 'participant'. */
+    public static function mode(string $slug): string
+    {
+        $mode = Setting::get('peoples_choice_mode_' . $slug);
+        return in_array($mode, self::MODES, true) ? $mode : self::MODE_GROUP;
+    }
+
+    /**
+     * Change the mode. Refused (returns false) while votes exist, so the two kinds of votes never mix.
+     */
+    public static function setMode(string $slug, string $mode): bool
+    {
+        if (!in_array($mode, self::MODES, true)) {
+            return false;
+        }
+        if ($mode !== self::mode($slug) && PublicVote::category($slug)->exists()) {
+            return false;
+        }
+        Setting::set('peoples_choice_mode_' . $slug, $mode, "People's Choice vote target for " . $slug);
+        return true;
+    }
+
+    /** Singular word for the vote target, for UI text. */
+    public static function targetLabel(string $mode): string
+    {
+        return $mode === self::MODE_PARTICIPANT ? 'participant' : 'group';
+    }
+
+    /* -------------------------------- Choices --------------------------------- */
 
     /** Same matching rule as GroupRankingReport: names compared trimmed and case-insensitive. */
     public static function groupKey(?string $name): string
@@ -53,11 +87,42 @@ class PeoplesChoiceService
     }
 
     /**
-     * Groups in the event, keyed by group_key, in participant-number order.
+     * What the audience can vote for, keyed by choice key, in participant-number order.
+     * Each choice: key, name, no (participant number, participant mode only), details (lines shown under the name).
      *
-     * @return array<string, array{group_key:string, group_name:string, members:array<int,string>}>
+     * @return array<string, array{key:string, name:string, no:?string, details:array<int,string>}>
      */
-    public static function groups(string $slug): array
+    public static function choices(string $slug, ?string $mode = null): array
+    {
+        $mode ??= self::mode($slug);
+
+        return $mode === self::MODE_PARTICIPANT
+            ? self::participantChoices($slug)
+            : self::groupChoices($slug);
+    }
+
+    private static function participantChoices(string $slug): array
+    {
+        // Natural sort so "2" comes before "10" regardless of the database.
+        $participants = RefParticipant::category($slug)->orderBy('id')->get()
+            ->sortBy(fn($p) => (string) $p->participant_no, SORT_NATURAL)
+            ->values();
+
+        $choices = [];
+        foreach ($participants as $p) {
+            $key = 'p' . $p->id;
+            $choices[$key] = [
+                'key'     => $key,
+                'name'    => trim((string) $p->participant),
+                'no'      => $p->participant_no,
+                'details' => array_values(array_filter([trim((string) $p->group_name), trim((string) $p->school)])),
+            ];
+        }
+
+        return $choices;
+    }
+
+    private static function groupChoices(string $slug): array
     {
         $members = RefParticipant::category($slug)
             ->whereNotNull('group_name')
@@ -73,11 +138,12 @@ class PeoplesChoiceService
                 continue;
             }
             $groups[$key] ??= [
-                'group_key'  => $key,
-                'group_name' => trim($member->group_name),
-                'members'    => [],
+                'key'     => $key,
+                'name'    => trim($member->group_name),
+                'no'      => null,
+                'details' => [],
             ];
-            $groups[$key]['members'][] = $member->participant;
+            $groups[$key]['details'][] = $member->participant;
         }
 
         return $groups;
@@ -96,14 +162,15 @@ class PeoplesChoiceService
     /**
      * Record one vote. Returns one of the status constants.
      */
-    public static function castVote(string $slug, string $groupKey, string $token, ?string $fingerprint, ?string $ip, ?string $userAgent): string
+    public static function castVote(string $slug, string $choiceKey, string $token, ?string $fingerprint, ?string $ip, ?string $userAgent): string
     {
         if (!self::isOpen($slug)) {
             return self::CLOSED;
         }
 
-        $groups = self::groups($slug);
-        if (!isset($groups[$groupKey]) || $token === '') {
+        $mode    = self::mode($slug);
+        $choices = self::choices($slug, $mode);
+        if (!isset($choices[$choiceKey]) || $token === '') {
             return self::INVALID;
         }
 
@@ -120,8 +187,9 @@ class PeoplesChoiceService
         try {
             PublicVote::create([
                 'category'     => $slug,
-                'group_key'    => $groupKey,
-                'group_name'   => $groups[$groupKey]['group_name'],
+                'mode'         => $mode,
+                'choice_key'   => $choiceKey,
+                'choice_name'  => $choices[$choiceKey]['name'],
                 'device_token' => $token,
                 'fingerprint'  => $fingerprint,
                 'ip'           => $ip,
@@ -138,29 +206,31 @@ class PeoplesChoiceService
     /* --------------------------------- Results -------------------------------- */
 
     /**
-     * Ranked tally. Every group is listed, including those with no votes.
+     * Ranked tally for the event's current mode. Every choice is listed, including those with no votes.
      *
-     * @return array{rows: array<int, array>, total: int, winners: array<int, array>, shared_fingerprints: int}
+     * @return array{mode: string, rows: array<int, array>, total: int, winners: array<int, array>, shared_fingerprints: int}
      */
     public static function tally(string $slug): array
     {
-        $groups = self::groups($slug);
-        $counts = PublicVote::category($slug)
-            ->selectRaw('group_key, MAX(group_name) as group_name, COUNT(*) as votes')
-            ->groupBy('group_key')
+        $mode    = self::mode($slug);
+        $choices = self::choices($slug, $mode);
+        $counts  = PublicVote::category($slug)
+            ->where('mode', $mode)
+            ->selectRaw('choice_key, MAX(choice_name) as choice_name, COUNT(*) as votes')
+            ->groupBy('choice_key')
             ->get()
-            ->keyBy('group_key');
+            ->keyBy('choice_key');
 
         $total = (int) $counts->sum('votes');
 
         $rows = [];
-        foreach ($groups as $key => $group) {
-            $rows[] = $group + ['votes' => (int) ($counts[$key]->votes ?? 0)];
+        foreach ($choices as $key => $choice) {
+            $rows[] = $choice + ['votes' => (int) ($counts[$key]->votes ?? 0), 'removed' => false];
         }
-        // Votes for a group that was later renamed/removed still count and stay visible.
+        // Votes for a choice that was later renamed/removed still count and stay visible.
         foreach ($counts as $key => $count) {
-            if (!isset($groups[$key])) {
-                $rows[] = ['group_key' => $key, 'group_name' => $count->group_name, 'members' => [], 'votes' => (int) $count->votes];
+            if (!isset($choices[$key])) {
+                $rows[] = ['key' => $key, 'name' => $count->choice_name, 'no' => null, 'details' => [], 'votes' => (int) $count->votes, 'removed' => true];
             }
         }
 
@@ -186,6 +256,7 @@ class PeoplesChoiceService
             ->count();
 
         return [
+            'mode'                => $mode,
             'rows'                => $rows,
             'total'               => $total,
             'winners'             => $winners,

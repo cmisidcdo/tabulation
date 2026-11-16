@@ -41,10 +41,10 @@ class PeoplesChoiceTest extends TestCase
 
     public function test_groups_are_merged_case_insensitively(): void
     {
-        $groups = PC::groups($this->slug);
+        $groups = PC::choices($this->slug);
 
         $this->assertSame(['group a', 'group b', 'group c'], array_keys($groups));
-        $this->assertSame(['Ana', 'Ben'], $groups['group a']['members']);
+        $this->assertSame(['Ana', 'Ben'], $groups['group a']['details']);
     }
 
     public function test_vote_rejected_while_closed(): void
@@ -91,7 +91,7 @@ class PeoplesChoiceTest extends TestCase
         $tally = PC::tally($this->slug);
 
         $this->assertSame(4, $tally['total']);
-        $byKey = collect($tally['rows'])->keyBy('group_key');
+        $byKey = collect($tally['rows'])->keyBy('key');
         $this->assertSame(1, $byKey['group a']['ordinal_rank']);
         $this->assertSame(1, $byKey['group b']['ordinal_rank']);
         $this->assertSame(3, $byKey['group c']['ordinal_rank']);
@@ -110,12 +110,12 @@ class PeoplesChoiceTest extends TestCase
         $token = $component->call('initDevice', null, 'abcdef0123456789')->get('deviceToken');
         $this->assertNotEmpty($token);
 
-        $component->call('vote', 'group b')->assertSet('votedGroup', 'Group B')->assertSee('Thank you for voting');
+        $component->call('vote', 'group b')->assertSet('votedFor', 'Group B')->assertSee('Thank you for voting');
 
         // Reloaded page whose localStorage still holds the token: recognised as already voted.
         Livewire::test(PublicVote::class, ['slug' => $this->slug])
             ->call('initDevice', $token, null)
-            ->assertSet('votedGroup', 'Group B');
+            ->assertSet('votedFor', 'Group B');
 
         $this->assertSame(1, PublicVoteModel::count());
     }
@@ -128,9 +128,66 @@ class PeoplesChoiceTest extends TestCase
         Livewire::test(PublicVote::class, ['slug' => $this->slug])
             ->call('vote', 'group c', 'abcdef0123456789')
             ->assertSet('error', null)
-            ->assertSet('votedGroup', 'Group C');
+            ->assertSet('votedFor', 'Group C');
 
         $this->assertSame('abcdef0123456789', PublicVoteModel::first()->fingerprint);
+    }
+
+    public function test_participant_mode_votes_for_individuals(): void
+    {
+        $this->assertTrue(PC::setMode($this->slug, PC::MODE_PARTICIPANT));
+        PC::setOpen($this->slug, true);
+
+        $choices = PC::choices($this->slug);
+        $this->assertCount(5, $choices); // everyone, including members without a group
+        $this->assertSame(['Ana', 'Ben', 'Cara', 'Dan', 'Solo'], array_column(array_values($choices), 'name'));
+
+        $cara = RefParticipant::where('participant', 'Cara')->first();
+        $this->assertSame(PC::INVALID, $this->vote('group b', 'token-aaaaaaaaaaaaaaaaaaaa')); // group keys not valid here
+        $this->assertSame(PC::OK, $this->vote('p' . $cara->id, 'token-aaaaaaaaaaaaaaaaaaaa'));
+        $this->assertSame(PC::OK, $this->vote('p' . $cara->id, 'token-bbbbbbbbbbbbbbbbbbbb'));
+
+        $tally = PC::tally($this->slug);
+        $this->assertSame('participant', $tally['mode']);
+        $this->assertSame(2, $tally['total']);
+        $this->assertSame(['Cara'], array_column($tally['winners'], 'name'));
+        $this->assertSame('participant', PublicVoteModel::first()->mode);
+
+        Livewire::test(PublicVote::class, ['slug' => $this->slug])
+            ->assertSee('Tap your favorite participant')
+            ->assertSee('Solo');
+    }
+
+    public function test_participant_mode_admin_pdf_and_led_render(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        Livewire::actingAs($admin)->test(\App\Livewire\PeoplesChoice::class)
+            ->set('selectedCategory', $this->slug)
+            ->call('setMode', 'participant')
+            ->assertSee('Participant')
+            ->call('toggleOpen')
+            ->call('generatePdf')
+            ->assertNotSet('base64pdf', null);
+
+        $dan = RefParticipant::where('participant', 'Dan')->first();
+        $this->assertSame(PC::OK, $this->vote('p' . $dan->id, 'token-zzzzzzzzzzzzzzzzzzzz'));
+        PC::setRevealed($this->slug, true);
+
+        $this->get('/display_peoples_choice/' . $this->slug)->assertOk()->assertSee('Dan')->assertSee('Group C');
+    }
+
+    public function test_mode_cannot_change_once_votes_exist(): void
+    {
+        PC::setOpen($this->slug, true);
+        $this->vote('group a', 'token-aaaaaaaaaaaaaaaaaaaa');
+
+        $this->assertFalse(PC::setMode($this->slug, PC::MODE_PARTICIPANT));
+        $this->assertSame(PC::MODE_GROUP, PC::mode($this->slug));
+
+        PC::resetVotes($this->slug);
+        $this->assertTrue(PC::setMode($this->slug, PC::MODE_PARTICIPANT));
+        $this->assertSame(PC::MODE_PARTICIPANT, PC::mode($this->slug));
     }
 
     public function test_vote_page_404_for_unknown_event(): void

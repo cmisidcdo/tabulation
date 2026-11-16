@@ -45,6 +45,11 @@
         .pc-option-body { display: flex; flex-direction: column; min-width: 0; }
         .pc-option-name { font-weight: 700; font-size: 1.1rem; text-transform: uppercase; }
         .pc-option-members { font-size: .85rem; color: #6b7785; }
+        .pc-no { flex: 0 0 auto; font-weight: 800; color: #266da7; font-size: 1rem; min-width: 2.2em; }
+
+        .pc-search { position: relative; margin-bottom: 12px; }
+        .pc-search .bi { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #6b7785; }
+        .pc-search input { padding: 12px 14px 12px 40px; border-radius: 12px; border: 0; font-size: 1rem; }
 
         .pc-submit-bar {
             position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));

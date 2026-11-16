@@ -29,6 +29,17 @@ class PeoplesChoice extends Component
         }
     }
 
+    public function setMode($mode): void
+    {
+        $slug = $this->slug();
+        if (!$slug || !is_string($mode)) {
+            return;
+        }
+        if (!PeoplesChoiceService::setMode($slug, $mode)) {
+            session()->flash('pc_message', 'Votes already exist for this event. Reset votes first to change what the audience votes for.');
+        }
+    }
+
     public function toggleReveal(): void
     {
         if ($slug = $this->slug()) {
@@ -82,10 +93,14 @@ class PeoplesChoice extends Component
         $data = compact('categories', 'slug');
         if ($slug) {
             $voteUrl = PeoplesChoiceService::voteUrl($slug);
+            $tally = PeoplesChoiceService::tally($slug);
             $data += [
+                'mode'       => $tally['mode'],
+                'target'     => PeoplesChoiceService::targetLabel($tally['mode']),
+                'hasVotes'   => \App\Models\PublicVote::category($slug)->exists(),
                 'isOpen'     => PeoplesChoiceService::isOpen($slug),
                 'isRevealed' => PeoplesChoiceService::isRevealed($slug),
-                'tally'      => PeoplesChoiceService::tally($slug),
+                'tally'      => $tally,
                 'voteUrl'    => $voteUrl,
                 'qrSvg'      => PeoplesChoiceService::qrSvg($voteUrl),
                 'displayUrl' => route('display_peoples_choice', $slug),

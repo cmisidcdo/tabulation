@@ -6,9 +6,9 @@
         @if (count($winners))
             <div class="pcl-trophy"><i class="bi bi-trophy-fill"></i></div>
             @foreach ($winners as $winner)
-                <div class="pcl-winner">{{ $winner['group_name'] }}</div>
-                @if (!empty($winner['members']))
-                    <div class="pcl-members">{{ implode(' • ', $winner['members']) }}</div>
+                <div class="pcl-winner">{{ $winner['name'] }}</div>
+                @if (!empty($winner['details']))
+                    <div class="pcl-members">{{ implode(' • ', $winner['details']) }}</div>
                 @endif
             @endforeach
             @if (count($winners) > 1)
@@ -22,7 +22,7 @@
             <div class="pcl-qr">{!! $qrSvg !!}</div>
             <div class="pcl-vote-text">
                 <div class="pcl-cta">Scan to vote!</div>
-                <div class="pcl-steps">Open your phone camera, scan the code,<br>and pick your favorite group.</div>
+                <div class="pcl-steps">Open your phone camera, scan the code,<br>and pick your favorite {{ $target }}.</div>
                 <div class="pcl-steps pcl-small">One vote per device.</div>
             </div>
         </div>

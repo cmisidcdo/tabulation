@@ -28,8 +28,9 @@ class PublicVote extends Component
     #[Locked]
     public ?string $fingerprint = null;
 
+    /** Name of what this device voted for; '' = voted but unknown (fingerprint block); null = not voted. */
     #[Locked]
-    public ?string $votedGroup = null;
+    public ?string $votedFor = null;
 
     public ?string $error = null;
 
@@ -43,7 +44,7 @@ class PublicVote extends Component
         Cookie::queue(Cookie::forever(self::COOKIE, $this->deviceToken));
 
         if ($vote = PeoplesChoiceService::voteForDevice($slug, $this->deviceToken)) {
-            $this->votedGroup = $vote->group_name;
+            $this->votedFor = $vote->choice_name;
         }
     }
 
@@ -57,19 +58,19 @@ class PublicVote extends Component
         $localToken = $this->validToken($localToken);
 
         // Cookie was cleared but localStorage still remembers this device: restore the old identity.
-        if ($localToken && $localToken !== $this->deviceToken && !$this->votedGroup) {
+        if ($localToken && $localToken !== $this->deviceToken && $this->votedFor === null) {
             $this->deviceToken = $localToken;
             Cookie::queue(Cookie::forever(self::COOKIE, $localToken));
 
             if ($vote = PeoplesChoiceService::voteForDevice($this->slug, $localToken)) {
-                $this->votedGroup = $vote->group_name;
+                $this->votedFor = $vote->choice_name;
             }
         }
 
         return $this->deviceToken;
     }
 
-    public function vote($groupKey, $fingerprint = null): void
+    public function vote($choiceKey, $fingerprint = null): void
     {
         $this->error = null;
 
@@ -90,10 +91,10 @@ class PublicVote extends Component
         }
         RateLimiter::hit($limiterKey, 60);
 
-        $groupKey = PeoplesChoiceService::groupKey(is_string($groupKey) ? $groupKey : '');
-        $status   = PeoplesChoiceService::castVote(
+        $choiceKey = is_string($choiceKey) ? mb_substr($choiceKey, 0, 255) : '';
+        $status    = PeoplesChoiceService::castVote(
             $this->slug,
-            $groupKey,
+            $choiceKey,
             $this->deviceToken,
             $this->fingerprint,
             request()->ip(),
@@ -102,18 +103,19 @@ class PublicVote extends Component
 
         switch ($status) {
             case PeoplesChoiceService::OK:
-                $this->votedGroup = PeoplesChoiceService::groups($this->slug)[$groupKey]['group_name'] ?? $groupKey;
+                $this->votedFor = PeoplesChoiceService::voteForDevice($this->slug, $this->deviceToken)?->choice_name ?? '';
                 break;
             case PeoplesChoiceService::ALREADY_VOTED:
-                // '' = blocked by the fingerprint check, so we don't know (or reveal) which group.
+                // '' = blocked by the fingerprint check, so we don't know (or reveal) the choice.
                 $existing = PeoplesChoiceService::voteForDevice($this->slug, $this->deviceToken);
-                $this->votedGroup = $existing?->group_name ?? '';
+                $this->votedFor = $existing?->choice_name ?? '';
                 break;
             case PeoplesChoiceService::CLOSED:
                 $this->error = 'Voting is closed.';
                 break;
             default:
-                $this->error = 'Please choose a valid group.';
+                // Usually the admin switched group/participant mode while this page was open.
+                $this->error = 'That choice is no longer available. Please choose again.';
         }
     }
 
@@ -130,11 +132,14 @@ class PublicVote extends Component
     public function render()
     {
         $category = Category::where('category', $this->slug)->first();
+        $mode     = PeoplesChoiceService::mode($this->slug);
 
         return view('livewire.public-vote', [
             'category' => $category,
             'isOpen'   => PeoplesChoiceService::isOpen($this->slug),
-            'groups'   => PeoplesChoiceService::groups($this->slug),
+            'mode'     => $mode,
+            'target'   => PeoplesChoiceService::targetLabel($mode),
+            'choices'  => PeoplesChoiceService::choices($this->slug, $mode),
         ]);
     }
 }

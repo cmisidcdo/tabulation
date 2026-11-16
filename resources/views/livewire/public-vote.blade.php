@@ -1,18 +1,18 @@
-<div class="pc-wrap" x-data="{ selected: null, selectedName: '' }">
+<div class="pc-wrap" x-data="{ selected: null, selectedName: '', q: '' }">
     <header class="pc-header text-center">
         <img src="{{ asset('img/cdo-seal.png') }}" alt="" class="pc-logo">
         <div class="pc-kicker">People's Choice Award</div>
         <h1 class="pc-title">{{ $category?->description }}</h1>
     </header>
 
-    @if ($votedGroup !== null)
+    @if ($votedFor !== null)
         {{-- Already voted / thank you --}}
         <div class="pc-card pc-state text-center">
             <div class="pc-state-icon text-success"><i class="bi bi-check-circle-fill"></i></div>
             <h2 class="h4 fw-bold mb-2">Thank you for voting!</h2>
-            @if ($votedGroup !== '')
+            @if ($votedFor !== '')
                 <p class="mb-1 text-muted">Your vote went to</p>
-                <p class="h5 fw-bold text-uppercase mb-3">{{ $votedGroup }}</p>
+                <p class="h5 fw-bold text-uppercase mb-3">{{ $votedFor }}</p>
             @else
                 <p class="text-muted mb-3">A vote has already been recorded from this device.</p>
             @endif
@@ -25,26 +25,42 @@
             <h2 class="h4 fw-bold mb-2">Voting is not open</h2>
             <p class="text-muted mb-0">Keep this page open. It will refresh automatically once voting starts.</p>
         </div>
-    @elseif (empty($groups))
+    @elseif (empty($choices))
         <div class="pc-card pc-state text-center">
-            <p class="text-muted mb-0">No groups to vote for yet.</p>
+            <p class="text-muted mb-0">No {{ $target }}s to vote for yet.</p>
         </div>
     @else
-        <p class="text-center pc-instructions">Tap your favorite group, then press <strong>Submit Vote</strong>.<br>You can vote <strong>once</strong> on this device.</p>
+        <p class="text-center pc-instructions">Tap your favorite {{ $target }}, then press <strong>Submit Vote</strong>.<br>You can vote <strong>once</strong> on this device.</p>
 
         @if ($error)
             <div class="alert alert-danger py-2 text-center">{{ $error }}</div>
         @endif
 
-        <div class="pc-list">
-            @foreach ($groups as $group)
-                <button type="button" class="pc-option"
-                    :class="{ 'is-selected': selected === @js($group['group_key']) }"
-                    x-on:click="selected = @js($group['group_key']); selectedName = @js($group['group_name'])">
+        @if (count($choices) > 8)
+            <div class="pc-search">
+                <i class="bi bi-search"></i>
+                <input type="search" x-model="q" class="form-control" placeholder="Search {{ $target }} name or number">
+            </div>
+        @endif
+
+        <div class="pc-list" wire:key="choices-{{ $mode }}">
+            @foreach ($choices as $choice)
+                @php
+                    $haystack = mb_strtolower(trim(($choice['no'] ?? '') . ' ' . $choice['name'] . ' ' . implode(' ', $choice['details'])));
+                @endphp
+                <button type="button" class="pc-option" wire:key="choice-{{ $choice['key'] }}"
+                    x-show="!q || @js($haystack).includes(q.trim().toLowerCase())"
+                    :class="{ 'is-selected': selected === @js($choice['key']) }"
+                    x-on:click="selected = @js($choice['key']); selectedName = @js($choice['name'])">
                     <span class="pc-radio"><i class="bi bi-check-lg"></i></span>
+                    @if (!empty($choice['no']))
+                        <span class="pc-no">#{{ $choice['no'] }}</span>
+                    @endif
                     <span class="pc-option-body">
-                        <span class="pc-option-name">{{ $group['group_name'] }}</span>
-                        <span class="pc-option-members">{{ implode(', ', $group['members']) }}</span>
+                        <span class="pc-option-name">{{ $choice['name'] }}</span>
+                        @if (!empty($choice['details']))
+                            <span class="pc-option-members">{{ implode($mode === 'group' ? ', ' : ' • ', $choice['details']) }}</span>
+                        @endif
                     </span>
                 </button>
             @endforeach
@@ -56,7 +72,7 @@
                 wire:loading.attr="disabled" wire:target="vote"
                 x-on:click="if (selected && confirm('Submit your vote for ' + selectedName + '?\nYou cannot change it later.')) { $wire.vote(selected, window.pcFp || null) }">
                 <span wire:loading.remove wire:target="vote">
-                    <span x-show="!selected">Select a group</span>
+                    <span x-show="!selected">Select a {{ $target }}</span>
                     <span x-show="selected" x-cloak>Submit Vote</span>
                 </span>
                 <span wire:loading wire:target="vote">

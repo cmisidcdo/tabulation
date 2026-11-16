@@ -77,17 +77,21 @@
             <div style="text-align:center;margin:10px 0 14px;font-size:13pt;">
                 Winner{{ count($tally['winners']) > 1 ? 's (tie)' : '' }}:
                 <strong style="text-transform:uppercase;">
-                    {{ implode(', ', array_column($tally['winners'], 'group_name')) }}
+                    {{ implode(', ', array_column($tally['winners'], 'name')) }}
                 </strong>
             </div>
         @endif
 
+        @php $isGroup = $tally['mode'] === 'group'; @endphp
         <table class="table bordered" style="margin-top:10px;">
             <thead>
                 <tr style="background:#2c3e50;color:#fff;">
                     <th width="8%" style="font-size:9pt;padding:4px;">RANK</th>
-                    <th width="28%" style="font-size:9pt;padding:4px;">GROUP</th>
-                    <th style="font-size:9pt;padding:4px;">MEMBERS</th>
+                    @unless ($isGroup)
+                        <th width="7%" style="font-size:9pt;padding:4px;text-align:center;">NO.</th>
+                    @endunless
+                    <th width="28%" style="font-size:9pt;padding:4px;">{{ $isGroup ? 'GROUP' : 'PARTICIPANT' }}</th>
+                    <th style="font-size:9pt;padding:4px;">{{ $isGroup ? 'MEMBERS' : 'GROUP / SCHOOL' }}</th>
                     <th width="10%" style="font-size:9pt;padding:4px;text-align:center;">VOTES</th>
                     <th width="10%" style="font-size:9pt;padding:4px;text-align:center;">SHARE</th>
                 </tr>
@@ -97,15 +101,18 @@
                     @php $hasVotes = $tally['total'] > 0; @endphp
                     <tr class="{{ $hasVotes && $row['ordinal_rank'] == 1 ? 'winner-1' : '' }}">
                         <td class="text-center" style="font-size:10pt;padding:3px;font-weight:bold;">{{ $hasVotes ? bong_ordinal($row['ordinal_rank']) : '-' }}</td>
-                        <td style="font-size:10pt;padding:3px;text-transform:uppercase;">{{ $row['group_name'] }}</td>
-                        <td style="font-size:9pt;padding:3px;">{{ implode(', ', $row['members']) ?: '-' }}</td>
+                        @unless ($isGroup)
+                            <td class="text-center" style="font-size:10pt;padding:3px;">{{ $row['no'] ?: '-' }}</td>
+                        @endunless
+                        <td style="font-size:10pt;padding:3px;text-transform:uppercase;">{{ $row['name'] }}</td>
+                        <td style="font-size:9pt;padding:3px;">{{ implode($isGroup ? ', ' : ' / ', $row['details']) ?: '-' }}</td>
                         <td class="text-center" style="font-size:11pt;padding:3px;font-weight:bold;">{{ number_format($row['votes']) }}</td>
                         <td class="text-center" style="font-size:10pt;padding:3px;">{{ number_format($row['percent'], 2) }}%</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="text-center" style="padding:10px;">
-                            No groups found. Set a Group on each participant in Reference &rarr; Participants.
+                        <td colspan="{{ $isGroup ? 5 : 6 }}" class="text-center" style="padding:10px;">
+                            {{ $isGroup ? 'No groups found. Set a Group on each participant in Reference → Participants.' : 'No participants found.' }}
                         </td>
                     </tr>
                 @endforelse

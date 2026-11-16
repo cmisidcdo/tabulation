@@ -28,7 +28,8 @@ class PeoplesChoiceController extends Controller
         $category = Category::where('category', $slug)->firstOrFail();
         $voteUrl  = PeoplesChoiceService::voteUrl($slug);
         $qr       = PeoplesChoiceService::qrPngDataUri($voteUrl, 16);
-        return view('peoples-choice-poster', compact('category', 'voteUrl', 'qr'));
+        $target   = PeoplesChoiceService::targetLabel(PeoplesChoiceService::mode($slug));
+        return view('peoples-choice-poster', compact('category', 'voteUrl', 'qr', 'target'));
     }
 
     /** Admin: download the QR code as a PNG file. */

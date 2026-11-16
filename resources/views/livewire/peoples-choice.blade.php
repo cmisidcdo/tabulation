@@ -6,9 +6,9 @@
                     <div class="card-body">
                         <h5 class="card-title">Event</h5>
                         <p class="text-muted" style="font-size:0.875rem;">
-                            The audience scans the QR code and votes once per device for a group.
-                            Groups come from the <strong>Group / Team</strong> field in Reference &rarr; Participants.
-                            Votes are separate from the judges' scores.
+                            The audience scans the QR code and votes once per device, either for a <strong>group</strong>
+                            (from the <strong>Group / Team</strong> field in Reference &rarr; Participants) or for an
+                            individual <strong>participant</strong>. Votes are separate from the judges' scores.
                         </p>
                         <select wire:model.live="selectedCategory" class="form-select">
                             <option value="">--- SELECT EVENT ---</option>
@@ -36,6 +36,25 @@
                                     <span class="badge bg-warning text-dark">WINNER REVEALED</span>
                                 @endif
                             </h5>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold mb-1">Audience votes for</label>
+                                <div class="btn-group w-100" role="group" aria-label="Vote target">
+                                    <button type="button" wire:click="setMode('group')"
+                                        class="btn {{ $mode === 'group' ? 'btn-primary' : 'btn-outline-primary' }}"
+                                        @disabled($hasVotes && $mode !== 'group')>
+                                        <i class="bi bi-people-fill"></i> Groups
+                                    </button>
+                                    <button type="button" wire:click="setMode('participant')"
+                                        class="btn {{ $mode === 'participant' ? 'btn-primary' : 'btn-outline-primary' }}"
+                                        @disabled($hasVotes && $mode !== 'participant')>
+                                        <i class="bi bi-person-fill"></i> Participants
+                                    </button>
+                                </div>
+                                @if ($hasVotes)
+                                    <div class="form-text">Locked because votes exist. Reset votes to change it.</div>
+                                @endif
+                            </div>
 
                             <div class="d-grid gap-2 mb-3">
                                 <button type="button" wire:click="toggleOpen"
@@ -93,8 +112,12 @@
 
                             @if (empty($tally['rows']))
                                 <div class="alert alert-warning mb-0">
-                                    No groups found for this event. Set a Group / Team on each participant in
-                                    Reference &rarr; Participants.
+                                    @if ($mode === 'group')
+                                        No groups found for this event. Set a Group / Team on each participant in
+                                        Reference &rarr; Participants, or switch to <strong>Participants</strong>.
+                                    @else
+                                        No participants found for this event. Add them in Reference &rarr; Participants.
+                                    @endif
                                 </div>
                             @else
                                 <div class="table-responsive">
@@ -102,7 +125,7 @@
                                         <thead>
                                             <tr>
                                                 <th width="10%">Rank</th>
-                                                <th>Group</th>
+                                                <th>{{ ucfirst($target) }}</th>
                                                 <th width="14%" class="text-end">Votes</th>
                                                 <th width="30%">Share</th>
                                             </tr>
@@ -112,11 +135,14 @@
                                                 <tr class="{{ $tally['total'] > 0 && $row['ordinal_rank'] == 1 ? 'table-warning fw-bold' : '' }}">
                                                     <td>{{ $tally['total'] > 0 ? $row['ordinal_rank'] : '-' }}</td>
                                                     <td>
-                                                        <div class="text-uppercase">{{ $row['group_name'] }}</div>
-                                                        @if (!empty($row['members']))
-                                                            <div class="small text-muted fw-normal">{{ implode(', ', $row['members']) }}</div>
-                                                        @else
-                                                            <div class="small text-danger fw-normal">Group no longer in participant list</div>
+                                                        <div class="text-uppercase">
+                                                            @if (!empty($row['no']))<span class="text-primary">#{{ $row['no'] }}</span>@endif
+                                                            {{ $row['name'] }}
+                                                        </div>
+                                                        @if ($row['removed'])
+                                                            <div class="small text-danger fw-normal">No longer in the participant list</div>
+                                                        @elseif (!empty($row['details']))
+                                                            <div class="small text-muted fw-normal">{{ implode($mode === 'group' ? ', ' : ' • ', $row['details']) }}</div>
                                                         @endif
                                                     </td>
                                                     <td class="text-end">{{ number_format($row['votes']) }}</td>
