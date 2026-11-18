@@ -123,8 +123,9 @@ class Scoring extends Component
 
         $participants = RefParticipant::when($this->selectedParticipant, fn($q) => $q->where('id', $this->selectedParticipant))
             ->category($this->type)
-            ->orderBy('participant_no')
-            ->get();
+            ->get()
+            ->sortBy('participant_no', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
 
         $categoryName = Category::where('category', $this->type)->first();
 

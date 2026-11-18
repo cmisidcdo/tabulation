@@ -139,7 +139,9 @@ class Modules extends Component
         $slug = $module->category;
 
         $criterias    = RefCriteria::where('category', $slug)->get();
-        $participants = RefParticipant::category($slug)->orderBy('participant_no')->get();
+        $participants = RefParticipant::category($slug)->get()
+            ->sortBy('participant_no', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
         $judges       = RefJudge::active()->category($slug)->get();
 
         $options = new Options();

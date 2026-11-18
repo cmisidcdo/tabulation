@@ -35,7 +35,9 @@ class Higalaay extends Component
             $query->where('id', $selected);
         })->when($group !== '', function ($query) use ($group) {
             $query->whereRaw('LOWER(TRIM(group_name)) = ?', [mb_strtolower($group)]);
-        })->category($this->type)->get();
+        })->category($this->type)->get()
+            ->sortBy('participant_no', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
 
         // Group events (e.g. Storytelling): list the groups and keep each group's members together.
         $groups = RefParticipant::category($this->type)
