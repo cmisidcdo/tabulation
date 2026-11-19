@@ -57,123 +57,40 @@
                         @if (session('imagesSaved'))
                             <div class="alert alert-success py-2">{{ session('imagesSaved') }}</div>
                         @endif
-                        @error('logoLeft1Upload')  <div class="alert alert-danger py-1">{{ $message }}</div> @enderror
-                        @error('logoLeft2Upload')  <div class="alert alert-danger py-1">{{ $message }}</div> @enderror
-                        @error('logoRight1Upload') <div class="alert alert-danger py-1">{{ $message }}</div> @enderror
-                        @error('logoRight2Upload') <div class="alert alert-danger py-1">{{ $message }}</div> @enderror
-                        @error('watermarkUpload')  <div class="alert alert-danger py-1">{{ $message }}</div> @enderror
-                        @error('footerUpload')     <div class="alert alert-danger py-1">{{ $message }}</div> @enderror
+                        @foreach ($slots as $slot)
+                            @error($slot['prop'] . 'Upload')
+                                <div class="alert alert-danger py-1">{{ $message }}</div>
+                            @enderror
+                        @endforeach
 
                         <div class="row g-3">
-
-                            {{-- Left Logo 1 --}}
-                            <div class="col-sm-4">
-                                <label class="form-label fw-bold">Left Logo 1</label>
-                                @if ($logoLeft1)
-                                    <div class="mb-2 d-flex align-items-center gap-2">
-                                        <img src="{{ asset('storage/report-header/' . $logoLeft1) }}" height="50"
+                            @foreach ($slots as $settingKey => $slot)
+                                @php
+                                    $current = $this->{$slot['prop']};
+                                    $pending = $this->{$slot['prop'] . 'Upload'};
+                                @endphp
+                                <div class="col-sm-4" wire:key="slot-{{ $settingKey }}">
+                                    <label class="form-label fw-bold">{{ $slot['label'] }}</label>
+                                    @if ($current)
+                                        <div class="mb-2 d-flex align-items-center gap-2">
+                                            <img src="{{ asset('storage/report-header/' . $current) }}" height="50"
+                                                style="object-fit:contain;">
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                wire:click="removeImage('{{ $settingKey }}')">Remove</button>
+                                        </div>
+                                    @endif
+                                    @if ($pending)
+                                        <img src="{{ $pending->temporaryUrl() }}" height="50" class="mb-2"
                                             style="object-fit:contain;">
-                                        <button class="btn btn-sm btn-outline-danger"
-                                            wire:click="removeImage('report_logo_left_1')">Remove</button>
-                                    </div>
-                                @endif
-                                @if ($logoLeft1Upload)
-                                    <img src="{{ $logoLeft1Upload->temporaryUrl() }}" height="50" class="mb-2"
-                                        style="object-fit:contain;">
-                                @endif
-                                <input type="file" class="form-control" wire:model="logoLeft1Upload" accept="image/*">
-                            </div>
-
-                            {{-- Left Logo 2 --}}
-                            <div class="col-sm-4">
-                                <label class="form-label fw-bold">Left Logo 2</label>
-                                @if ($logoLeft2)
-                                    <div class="mb-2 d-flex align-items-center gap-2">
-                                        <img src="{{ asset('storage/report-header/' . $logoLeft2) }}" height="50"
-                                            style="object-fit:contain;">
-                                        <button class="btn btn-sm btn-outline-danger"
-                                            wire:click="removeImage('report_logo_left_2')">Remove</button>
-                                    </div>
-                                @endif
-                                @if ($logoLeft2Upload)
-                                    <img src="{{ $logoLeft2Upload->temporaryUrl() }}" height="50" class="mb-2"
-                                        style="object-fit:contain;">
-                                @endif
-                                <input type="file" class="form-control" wire:model="logoLeft2Upload" accept="image/*">
-                            </div>
-
-                            {{-- Right Logo 1 --}}
-                            <div class="col-sm-4">
-                                <label class="form-label fw-bold">Right Logo 1</label>
-                                @if ($logoRight1)
-                                    <div class="mb-2 d-flex align-items-center gap-2">
-                                        <img src="{{ asset('storage/report-header/' . $logoRight1) }}" height="50"
-                                            style="object-fit:contain;">
-                                        <button class="btn btn-sm btn-outline-danger"
-                                            wire:click="removeImage('report_logo_right')">Remove</button>
-                                    </div>
-                                @endif
-                                @if ($logoRight1Upload)
-                                    <img src="{{ $logoRight1Upload->temporaryUrl() }}" height="50" class="mb-2"
-                                        style="object-fit:contain;">
-                                @endif
-                                <input type="file" class="form-control" wire:model="logoRight1Upload" accept="image/*">
-                            </div>
-
-                            {{-- Right Logo 2 --}}
-                            <div class="col-sm-4">
-                                <label class="form-label fw-bold">Right Logo 2</label>
-                                @if ($logoRight2)
-                                    <div class="mb-2 d-flex align-items-center gap-2">
-                                        <img src="{{ asset('storage/report-header/' . $logoRight2) }}" height="50"
-                                            style="object-fit:contain;">
-                                        <button class="btn btn-sm btn-outline-danger"
-                                            wire:click="removeImage('report_logo_right_2')">Remove</button>
-                                    </div>
-                                @endif
-                                @if ($logoRight2Upload)
-                                    <img src="{{ $logoRight2Upload->temporaryUrl() }}" height="50" class="mb-2"
-                                        style="object-fit:contain;">
-                                @endif
-                                <input type="file" class="form-control" wire:model="logoRight2Upload" accept="image/*">
-                            </div>
-
-                            {{-- Watermark --}}
-                            <div class="col-sm-4">
-                                <label class="form-label fw-bold">Watermark</label>
-                                @if ($watermark)
-                                    <div class="mb-2 d-flex align-items-center gap-2">
-                                        <img src="{{ asset('storage/report-header/' . $watermark) }}" height="50"
-                                            style="object-fit:contain;">
-                                        <button class="btn btn-sm btn-outline-danger"
-                                            wire:click="removeImage('report_watermark')">Remove</button>
-                                    </div>
-                                @endif
-                                @if ($watermarkUpload)
-                                    <img src="{{ $watermarkUpload->temporaryUrl() }}" height="50" class="mb-2"
-                                        style="object-fit:contain;">
-                                @endif
-                                <input type="file" class="form-control" wire:model="watermarkUpload" accept="image/*">
-                            </div>
-
-                            {{-- Footer Image --}}
-                            <div class="col-sm-4">
-                                <label class="form-label fw-bold">Footer Image</label>
-                                @if ($footer)
-                                    <div class="mb-2 d-flex align-items-center gap-2">
-                                        <img src="{{ asset('storage/report-header/' . $footer) }}" height="50"
-                                            style="object-fit:contain;">
-                                        <button class="btn btn-sm btn-outline-danger"
-                                            wire:click="removeImage('report_footer')">Remove</button>
-                                    </div>
-                                @endif
-                                @if ($footerUpload)
-                                    <img src="{{ $footerUpload->temporaryUrl() }}" height="50" class="mb-2"
-                                        style="object-fit:contain;">
-                                @endif
-                                <input type="file" class="form-control" wire:model="footerUpload" accept="image/*">
-                            </div>
-
+                                    @endif
+                                    <input type="file" class="form-control" wire:model="{{ $slot['prop'] }}Upload"
+                                        accept="image/*">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2"
+                                        wire:click="openPicker('{{ $settingKey }}')">
+                                        <i class="bi bi-images"></i> Choose from library
+                                    </button>
+                                </div>
+                            @endforeach
                         </div>
 
                         <div class="mt-3">
@@ -191,4 +108,64 @@
 
         </div>
     </section>
+
+    {{-- Image library picker --}}
+    @if ($pickerFor)
+        <div class="modal d-block" tabindex="-1" style="background: rgba(0, 0, 0, .5);" wire:key="image-picker">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Choose image for {{ $slots[$pickerFor]['label'] }}</h5>
+                        <button type="button" class="btn-close" wire:click="closePicker"></button>
+                    </div>
+                    <div class="modal-body">
+                        @php $selected = $this->{$slots[$pickerFor]['prop']}; @endphp
+                        <div class="row g-3">
+                            @forelse ($this->libraryImages as $img)
+                                @php
+                                    $usedBy = collect($slots)
+                                        ->filter(fn ($s) => $this->{$s['prop']} === $img['name'])
+                                        ->pluck('label');
+                                @endphp
+                                <div class="col-6 col-md-3" wire:key="lib-{{ $img['name'] }}">
+                                    <div class="card h-100 mb-0 {{ $selected === $img['name'] ? 'border border-primary border-2' : '' }}">
+                                        <div class="p-2 text-center bg-light" role="button"
+                                            wire:click="selectExisting(@js($img['name']))" title="Use this image">
+                                            <img src="{{ asset('storage/report-header/' . $img['name']) }}"
+                                                style="height:90px; max-width:100%; object-fit:contain;">
+                                        </div>
+                                        <div class="card-body p-2">
+                                            <small class="d-block text-truncate text-muted" title="{{ $img['name'] }}">
+                                                {{ $img['name'] }}
+                                            </small>
+                                            @foreach ($usedBy as $label)
+                                                <span class="badge bg-info text-dark">{{ $label }}</span>
+                                            @endforeach
+                                            <div class="d-flex gap-1 mt-2">
+                                                <button type="button" class="btn btn-sm btn-primary flex-fill"
+                                                    wire:click="selectExisting(@js($img['name']))">Use</button>
+                                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                                    title="Delete from library"
+                                                    wire:click="deleteFromLibrary(@js($img['name']))"
+                                                    wire:confirm="Permanently delete this image?{{ $usedBy->isNotEmpty() ? ' It will also be removed from: ' . $usedBy->implode(', ') . '.' : '' }}">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="col-12 text-center text-muted py-4">
+                                    No images uploaded yet. Upload one first and it will appear here.
+                                </div>
+                            @endforelse
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" wire:click="closePicker">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
