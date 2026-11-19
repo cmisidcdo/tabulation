@@ -98,6 +98,14 @@
                                                                 <button type="button" class="btn {{ $isLocked ? 'btn-warning' : 'btn-outline-secondary' }}" wire:click="toggleLock({{ $item->id }})" title="{{ $isLocked ? 'Unlock Scoring' : 'Lock Scoring' }}">
                                                                     <i class="bi {{ $isLocked ? 'bi-lock-fill' : 'bi-unlock' }}"></i>
                                                                 </button>
+                                                                <button wire:key="order-{{ $item->id }}" type="button" class="btn btn-outline-success" wire:click="openOrder({{ $item->id }})" title="Participant order / numbers (bunot)">
+                                                                    <div wire:loading.remove wire:target="openOrder({{ $item->id }})">
+                                                                        <i class="bi bi-sort-numeric-down"></i>
+                                                                    </div>
+                                                                    <div wire:loading wire:target="openOrder({{ $item->id }})">
+                                                                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                                                                    </div>
+                                                                </button>
                                                                 <button wire:key="generate-{{ $item->id }}" type="button" class="btn btn-outline-primary" wire:click="generateScoreSheet({{ $item->id }})" title="Generate blank score sheet">
                                                                     <div wire:loading.remove wire:target="generateScoreSheet({{ $item->id }})">
                                                                         <i class="bi bi-file-earmark-pdf"></i>
@@ -218,6 +226,117 @@
             </div>
         </div>
     </div>
+
+    <!-- Participant Order (bunot) Modal -->
+    @if ($orderCategoryId)
+        @php $orderModule = \App\Models\Category::find($orderCategoryId); @endphp
+        <div class="modal d-block" tabindex="-1" style="background: rgba(0, 0, 0, .5);" wire:key="order-modal">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h1 class="modal-title fs-5">
+                            Participant Order — {{ $orderModule?->description }}
+                        </h1>
+                        <button type="button" class="btn-close" wire:click="closeOrder"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (empty($orderRows))
+                            <div class="text-center text-muted py-4">No participants in this category.</div>
+                        @else
+                            <p class="text-muted small mb-2">
+                                Type the drawn number (1 to {{ count($orderRows) }}) for each participant, or use the arrows to move a participant
+                                up/down (each position keeps its number). Nothing is saved until you click
+                                <strong>Save Order</strong>.
+                            </p>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" wire:click="sortByNumber">
+                                    <i class="bi bi-sort-numeric-down"></i> Sort by number
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" wire:click="renumberSequential"
+                                    wire:confirm="Renumber everyone 1, 2, 3… in the order shown?">
+                                    <i class="bi bi-123"></i> Renumber 1…{{ count($orderRows) }}
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-warning" wire:click="shuffleOrder"
+                                    wire:confirm="Randomly reassign the current numbers to the participants?">
+                                    <i class="bi bi-shuffle"></i> Random draw
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger ms-auto" wire:click="resetOrder">
+                                    <i class="bi bi-arrow-counterclockwise"></i> Undo changes
+                                </button>
+                            </div>
+
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 50px;">#</th>
+                                        <th style="width: 130px;">Participant No.</th>
+                                        <th>Participant</th>
+                                        <th class="text-end" style="width: 90px;">Move</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($orderRows as $i => $row)
+                                        @php $isChanged = (string) $row['no'] !== $row['original']; @endphp
+                                        <tr wire:key="order-row-{{ $i }}" class="{{ $isChanged ? 'table-warning' : '' }}">
+                                            <td class="text-muted">{{ $i + 1 }}</td>
+                                            <td>
+                                                <input type="number" min="1" max="{{ count($orderRows) }}" step="1"
+                                                    wire:model.blur="orderRows.{{ $i }}.no"
+                                                    class="form-control form-control-sm @error('orderRows.' . $i . '.no') is-invalid @enderror">
+                                                @error('orderRows.' . $i . '.no')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                                @if ($isChanged)
+                                                    <small class="text-muted">was {{ $row['original'] !== '' ? $row['original'] : '—' }}</small>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <div class="fw-semibold">{{ $row['name'] }}</div>
+                                                @if ($row['school'])
+                                                    <small class="text-muted">{{ $row['school'] }}</small>
+                                                @endif
+                                                @if ($row['categories'] > 1)
+                                                    <div>
+                                                        <small class="text-warning-emphasis" title="Participant numbers are shared across categories">
+                                                            <i class="bi bi-exclamation-triangle"></i>
+                                                            Also in {{ $row['categories'] - 1 }} other categor{{ $row['categories'] - 1 === 1 ? 'y' : 'ies' }} — number changes there too.
+                                                        </small>
+                                                    </div>
+                                                @endif
+                                            </td>
+                                            <td class="text-end">
+                                                <div class="btn-group btn-group-sm">
+                                                    <button type="button" class="btn btn-outline-secondary" title="Move up"
+                                                        wire:click="moveParticipant({{ $i }}, -1)" @disabled($loop->first)>
+                                                        <i class="bi bi-arrow-up"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-secondary" title="Move down"
+                                                        wire:click="moveParticipant({{ $i }}, 1)" @disabled($loop->last)>
+                                                        <i class="bi bi-arrow-down"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        @endif
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" wire:click="closeOrder">Cancel</button>
+                        @if (!empty($orderRows))
+                            <button type="button" class="btn btn-primary" wire:click="saveOrder">
+                                <span wire:loading.remove wire:target="saveOrder">Save Order</span>
+                                <span wire:loading wire:target="saveOrder">
+                                    <span class="spinner-border spinner-border-sm"></span> Saving...
+                                </span>
+                            </button>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 </section>
 @script
     <script>

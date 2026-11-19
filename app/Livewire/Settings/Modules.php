@@ -36,6 +36,10 @@ class Modules extends Component
     # Score sheet PDF preview
     public $base64pdf;
 
+    # Participant order (bunot / draw) editor
+    public ?int $orderCategoryId = null;
+    public array $orderRows = [];
+
     public function rules()
     {
         return [
@@ -229,5 +233,204 @@ class Modules extends Component
         $key = 'scoring_locked_' . $category->category;
         $current = Setting::get($key, false);
         Setting::set($key, !$current, 'Scoring lock for ' . $category->description);
+    }
+
+    /* ------------------------------------------------------------------
+     | Participant order (bunot / draw)
+     |
+     | Rows are kept in participation order. Numbers belong to positions:
+     | moving or shuffling a participant changes who holds each number,
+     | while typing in a box changes that participant's number directly.
+     * ------------------------------------------------------------------ */
+
+    public function openOrder($id)
+    {
+        $module = Category::findOrFail($id);
+
+        $this->orderCategoryId = $module->id;
+        $this->orderRows = RefParticipant::category($module->category)->get()
+            ->sortBy('participant_no', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->map(fn ($p) => [
+                'id'         => $p->id,
+                'no'         => (string) $p->participant_no,
+                'original'   => (string) $p->participant_no,
+                'typed'      => false, // true when the number was entered by hand
+                'name'       => $p->participant,
+                'school'     => $p->school,
+                'categories' => count((array) $p->category),
+            ])
+            ->all();
+
+        $this->resetValidation();
+    }
+
+    public function closeOrder()
+    {
+        $this->reset(['orderCategoryId', 'orderRows']);
+        $this->resetValidation();
+    }
+
+    public function moveParticipant(int $index, int $direction)
+    {
+        $target = $index + ($direction < 0 ? -1 : 1);
+        if (!isset($this->orderRows[$index], $this->orderRows[$target])) {
+            return;
+        }
+
+        // Swap the participants but leave each position's number in place
+        $numbers = $this->positionalNumbers();
+        [$this->orderRows[$index], $this->orderRows[$target]] = [$this->orderRows[$target], $this->orderRows[$index]];
+        $this->applyNumbers($numbers);
+    }
+
+    /** Random draw: shuffle who gets which of the current numbers. */
+    public function shuffleOrder()
+    {
+        $numbers = $this->positionalNumbers();
+        shuffle($this->orderRows);
+        $this->applyNumbers($numbers);
+    }
+
+    /** Re-sort the rows by the numbers currently typed in. */
+    public function sortByNumber()
+    {
+        $this->orderRows = collect($this->orderRows)
+            ->sortBy('no', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
+    }
+
+    /** Number the rows 1..N in their current order (keeps zero-padding like "01" if used). */
+    public function renumberSequential()
+    {
+        $width = collect($this->orderRows)
+            ->pluck('original')
+            ->filter(fn ($no) => preg_match('/^0\d+$/', $no))
+            ->map(fn ($no) => strlen($no))
+            ->max() ?? 0;
+
+        foreach ($this->orderRows as $i => $row) {
+            $this->orderRows[$i]['no'] = str_pad((string) ($i + 1), $width, '0', STR_PAD_LEFT);
+            $this->orderRows[$i]['typed'] = false;
+        }
+        $this->resetValidation();
+    }
+
+    public function resetOrder()
+    {
+        if ($this->orderCategoryId) {
+            $this->openOrder($this->orderCategoryId);
+        }
+    }
+
+    public function saveOrder()
+    {
+        $module = Category::find($this->orderCategoryId);
+        if (!$module) {
+            return $this->closeOrder();
+        }
+
+        foreach ($this->orderRows as $i => $row) {
+            $this->orderRows[$i]['no'] = trim((string) $row['no']);
+        }
+
+        $errors = [];
+        $seen = [];
+        foreach ($this->orderRows as $i => $row) {
+            $key = mb_strtolower($row['no']);
+            if ($error = $this->orderNumberError($i)) {
+                $errors["orderRows.$i.no"] = $error;
+            } elseif (isset($seen[$key])) {
+                $errors["orderRows.$i.no"] = 'Duplicate number.';
+                $errors["orderRows.{$seen[$key]}.no"] = 'Duplicate number.';
+            } else {
+                $seen[$key] = $i;
+            }
+        }
+        if ($errors) {
+            $this->resetValidation();
+            foreach ($errors as $field => $message) {
+                $this->addError($field, $message);
+            }
+            return;
+        }
+
+        $changed = collect($this->orderRows)->filter(fn ($row) => $row['no'] !== $row['original']);
+
+        DB::transaction(function () use ($changed, $module) {
+            foreach ($changed as $row) {
+                RefParticipant::category($module->category)
+                    ->whereKey($row['id'])
+                    ->update(['participant_no' => $row['no']]);
+            }
+        });
+
+        $this->closeOrder();
+        session()->flash('status', $changed->isEmpty()
+            ? 'No participant numbers changed.'
+            : 'Updated ' . $changed->count() . ' participant number(s) for ' . $module->description . '.');
+    }
+
+    /** Check a typed number as soon as the field loses focus. */
+    public function updatedOrderRows($value, $key)
+    {
+        if (!preg_match('/^(\d+)\.no$/', (string) $key, $m)) {
+            return;
+        }
+
+        $i = (int) $m[1];
+        if (!isset($this->orderRows[$i])) {
+            return;
+        }
+
+        $no = trim((string) $value);
+        $this->orderRows[$i]['no'] = $no;
+        // Retyping the participant's own saved number isn't a new entry
+        $this->orderRows[$i]['typed'] = $no !== $this->orderRows[$i]['original'];
+
+        $this->resetValidation("orderRows.$i.no");
+        if ($error = $this->orderNumberError($i)) {
+            $this->addError("orderRows.$i.no", $error);
+        }
+    }
+
+    /**
+     * A number typed by hand must be a whole number from 1 to the participant count.
+     * Saved numbers that are only moved around (arrows / random draw) are left alone,
+     * so a category whose current numbers exceed the count can still be reordered.
+     */
+    private function orderNumberError(int $i): ?string
+    {
+        $row = $this->orderRows[$i] ?? null;
+        $no = trim((string) ($row['no'] ?? ''));
+        $max = count($this->orderRows);
+
+        if ($no === '') {
+            return 'Required.';
+        }
+        if (empty($row['typed'])) {
+            return null;
+        }
+        if (!ctype_digit($no) || (int) $no < 1 || (int) $no > $max) {
+            return "Must be 1 to $max.";
+        }
+
+        return null;
+    }
+
+    /** Numbers (and whether each was typed) by position, so they stay put when participants move. */
+    private function positionalNumbers(): array
+    {
+        return array_map(fn ($row) => ['no' => $row['no'], 'typed' => $row['typed'] ?? false], $this->orderRows);
+    }
+
+    private function applyNumbers(array $numbers): void
+    {
+        foreach ($numbers as $i => $n) {
+            $this->orderRows[$i]['no'] = $n['no'];
+            $this->orderRows[$i]['typed'] = $n['typed'];
+        }
+        $this->resetValidation();
     }
 }
