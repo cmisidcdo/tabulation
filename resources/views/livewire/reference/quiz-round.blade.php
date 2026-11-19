@@ -4,7 +4,7 @@
                 <section class="section oratorical">
                     <div class="row">
                         <div class="col-lg-12">
-                            <div class="col-lg-10 mx-auto">
+                            <div class="col-12">
                                 <div class="card">
                                     <div class="card-body">
                                         <h5 class="card-title">Add Round</h5>

@@ -1,7 +1,7 @@
 <section class="section poster">
     <div class="row">
         <div class="col-lg-12">
-            <div class="col-lg-10 mx-auto">
+            <div class="col-12">
                 <div class="card" wire:loading.class="opacity-50 pe-none">
                     <div class="card-header">
                         <div class="d-flex justify-content-between">

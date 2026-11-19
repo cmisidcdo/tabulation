@@ -1,7 +1,7 @@
 <div>
-    <div class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
+    <div>
+        <div class="row">
+            <div class="col-xl-6 col-lg-8">
                 <div class="card shadow-lg border-0 rounded-4">
                     <div class="card-header bg-primary text-white text-center">
                         <h4 class="mb-0">API Database Download & Upload</h4>
