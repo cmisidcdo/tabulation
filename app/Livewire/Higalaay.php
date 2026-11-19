@@ -10,10 +10,6 @@ use App\Models\RefCriteria;
 use App\Models\RefDeduction;
 use App\Models\RefJudge;
 use App\Models\RefParticipant;
-use App\Services\ReportService;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Dompdf\Dompdf;
-use Dompdf\Options;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Locked;
@@ -25,7 +21,7 @@ class Higalaay extends Component
     public $type;
     #[Locked]
     public $winner;
-    public $search, $selectedParticipant, $judge_id, $criteria_id, $base64pdf = '';
+    public $search, $selectedParticipant, $judge_id;
     public $showDropdown = false;
     public $suggestions = [];
     public $selectedGroup = '';
@@ -215,43 +211,6 @@ class Higalaay extends Component
         ]);
 
         return ['ok' => true, 'score' => $value];
-    }
-    public function generateReport()
-    {
-        $paper = array(0, 0, 850, 1400);
-        $category = $this->type;
-        $winner =  $this->winner;
-
-        $service = new ReportService($category, $this->criteria_id);
-        $participants = $service->generateTopParticipants();
-        $judges =  $service->judges;
-
-        $criteria = RefCriteria::find($this->criteria_id);
-        $categoryName = Category::where('category', $this->type)->pluck('description')->first();
-
-        $options = new Options();
-        $options->set('isRemoteEnabled', false);
-        $htmlContent = view('generated_pdf.higalaay', compact('participants', 'judges', 'category', 'criteria', 'categoryName', 'winner'))->render();
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($htmlContent);
-        $dompdf->setPaper('folio', 'landscape');
-        $dompdf->render();
-
-        $canvas = $dompdf->getCanvas();
-        $fontMetrics = $dompdf->getFontMetrics();
-        $font = $fontMetrics->getFont("Arial", "normal");
-        $size = 10;
-        $canvas->page_text(
-            830,                 // X position
-            570,                 // Y position
-            "Page {PAGE_NUM} of {PAGE_COUNT}",
-            $font,
-            $size,
-            [0, 0, 0], // Color in RGB [0, 0, 0]
-        );
-
-        $this->base64pdf = base64_encode($dompdf->output());
-        $this->dispatch('openModal');
     }
     public function saveDeduction($participant_id, $score)
     {
