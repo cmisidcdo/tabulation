@@ -127,10 +127,9 @@ return [
     |
     */
 
-    'cookie' => env(
-        'SESSION_COOKIE',
-        Str::slug(env('APP_NAME', 'laravel'), '_').'_session'
-    ),
+    // A unique default name: other Laravel apps on the same host (cookies are shared across
+    // ports) also use "laravel_session" and would overwrite ours, causing 419 Page Expired.
+    'cookie' => env('SESSION_COOKIE', 'tabulation_session'),
 
     /*
     |--------------------------------------------------------------------------
