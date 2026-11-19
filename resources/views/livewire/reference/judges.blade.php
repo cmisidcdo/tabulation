@@ -6,56 +6,74 @@
                     <div class="col-lg-12">
                         <div class="col-12">
                             <div class="card">
-                                <div class="card-header toolbar mb-3  d-flex justify-content-between align-items-center">
-                                    <h5 class="card-title">Add Judges</h5>
-                                    <div class="d-flex">
-                                        <div class="mx-2">
-                                            <select name="selectedCateg" wire:model.live="selectedCateg" class="form-select" id="selectedCateg">
-                                                <option value="">--- SELECT ---</option>
+                                <div class="card-header toolbar mb-3 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">
+                                        Judges
+                                        <span class="badge text-bg-light border ms-1">{{ $judges->total() }}</span>
+                                    </h5>
+                                    <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-1" wire:click="addJudge" wire:loading.attr="disabled" wire:target="addJudge">
+                                        <i class="bi bi-plus-lg" wire:loading.remove wire:target="addJudge"></i>
+                                        <span class="spinner-border spinner-border-sm" role="status" wire:loading wire:target="addJudge">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </span>
+                                        Add Judge
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-2 align-items-center mb-3">
+                                        <div class="col-12 col-md">
+                                            <div class="input-group">
+                                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                                <input type="search" wire:model.live.debounce.300ms="search" class="form-control" placeholder="Search name, judge no., or email" aria-label="Search judges">
+                                            </div>
+                                        </div>
+                                        <div class="col-6 col-md-auto">
+                                            <select name="selectedCateg" wire:model.live="selectedCateg" class="form-select" id="selectedCateg" aria-label="Filter by event">
+                                                <option value="">All Events</option>
                                                 @foreach ($categories as $item)
                                                     <option value="{{ $item->category }}">{{ $item->description }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="mx-2">
-                                            <select name="selectedStatus" wire:model.live="selectedStatus" class="form-select" id="selectedStatus">
-                                                <option value="">--- Status (All) ---</option>
+                                        <div class="col-6 col-md-auto">
+                                            <select name="selectedStatus" wire:model.live="selectedStatus" class="form-select" id="selectedStatus" aria-label="Filter by status">
+                                                <option value="">All Status</option>
                                                 <option value="1">Active</option>
                                                 <option value="0">Inactive</option>
                                             </select>
                                         </div>
-                                        <button type="button" class="btn btn-primary" wire:click="addJudge">
-                                            <div wire:loading.remove wire:target="addJudge">
-                                                <i class="bi bi-plus-circle"></i>
+                                        @if ($hasFilters)
+                                            <div class="col-12 col-md-auto">
+                                                <button type="button" class="btn btn-outline-secondary w-100" wire:click="clearFilters">
+                                                    <i class="bi bi-x-lg"></i> Clear
+                                                </button>
                                             </div>
-                                            <div wire:loading wire:target="addJudge">
-                                                <div class="spinner-border spinner-border-sm" role="status">
-                                                    <span class="visually-hidden">Loading...</span>
-                                                </div>
-                                            </div>
-                                        </button>
+                                        @endif
                                     </div>
-                                </div>
-                                <div class="card-body">
-                                    <div class="table-responsive">
-                                        <!-- Table with hoverable rows -->
-                                        <table class="table table-hover  table-striped">
-                                            <thead>
+                                    <div class="table-responsive position-relative">
+                                        <table class="table table-hover table-striped align-middle mb-2"
+                                            wire:loading.class="opacity-50"
+                                            wire:target="search,selectedCateg,selectedStatus,clearFilters,gotoPage,nextPage,previousPage,toggleStatus,executeDelete,saveJudge">
+                                            <thead class="table-light">
                                                 <tr>
-                                                    <th scope="col" style="width:3%">#</th>
-                                                    <th scope="col" style="width:12%">Judge No.</th>
+                                                    <th scope="col" style="width:4%">#</th>
+                                                    <th scope="col" style="width:10%">Judge No.</th>
                                                     <th scope="col">Judge Name</th>
                                                     <th scope="col">Events</th>
                                                     <th scope="col" style="width:10%" class="text-center">Status</th>
-                                                    <th scope="col" style="width:14%" class="text-center">Actions</th>
+                                                    <th scope="col" style="width:14%" class="text-center text-nowrap">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 @forelse ($judges as $item)
-                                                    <tr>
-                                                        <td>{{ ($judges->currentPage() - 1) * $judges->perPage() + $loop->iteration }}</td>
+                                                    <tr wire:key="judge-row-{{ $item->id }}" @class(['text-muted' => !$item->is_active])>
+                                                        <td>{{ $judges->firstItem() + $loop->index }}</td>
                                                         <td>
-                                                            <span class="badge text-bg-secondary fs-6">#{{ $item->nickname }}</span>
+                                                            @if (filled($item->nickname))
+                                                                <span class="badge text-bg-secondary fs-6">#{{ $item->nickname }}</span>
+                                                            @else
+                                                                <span class="text-muted">&mdash;</span>
+                                                            @endif
                                                         </td>
                                                         <td>
                                                             <span class="fw-semibold">{{ $item->judge }}</span>
@@ -64,16 +82,18 @@
                                                             @endif
                                                         </td>
                                                         <td>
-                                                            @foreach ($item->category as $cat)
-                                                                <span class="badge text-bg-primary me-1 mb-1 text-capitalize">{{ $cat }}</span>
-                                                            @endforeach
+                                                            @forelse ($item->category ?? [] as $cat)
+                                                                <span class="badge text-bg-primary me-1 mb-1">{{ $categoryLabels[$cat] ?? ucfirst($cat) }}</span>
+                                                            @empty
+                                                                <span class="small text-muted">No events</span>
+                                                            @endforelse
                                                         </td>
                                                         <td class="text-center">
                                                             <span class="badge {{ $item->is_active ? 'text-bg-success' : 'text-bg-danger' }}">
                                                                 {{ $item->is_active ? 'Active' : 'Inactive' }}
                                                             </span>
                                                         </td>
-                                                        <td class="text-center">
+                                                        <td class="text-center text-nowrap">
                                                             <button wire:key="toggle-{{ $item->id }}" wire:target="toggleStatus({{ $item->id }})" wire:loading.attr="disabled" wire:click="toggleStatus({{ $item->id }})" class="btn btn-sm {{ $item->is_active ? 'btn-warning' : 'btn-success' }}" title="{{ $item->is_active ? 'Deactivate' : 'Activate' }}">
                                                                 <div wire:loading.remove wire:target="toggleStatus({{ $item->id }})">
                                                                     <i class="bi {{ $item->is_active ? 'bi-toggle-on' : 'bi-toggle-off' }}"></i>
@@ -108,15 +128,24 @@
                                                     </tr>
                                                 @empty
                                                     <tr class="text-center">
-                                                        <td colspan="6" class="text-muted py-3">-- NO DATA --</td>
+                                                        <td colspan="6" class="text-muted py-4">
+                                                            @if ($hasFilters)
+                                                                No judges match your search or filters.
+                                                                <button type="button" class="btn btn-link btn-sm p-0 align-baseline" wire:click="clearFilters">Clear filters</button>
+                                                            @else
+                                                                No judges yet. Click <strong>Add Judge</strong> to add one.
+                                                            @endif
+                                                        </td>
                                                     </tr>
                                                 @endforelse
                                             </tbody>
                                         </table>
-                                        <!-- End Table with hoverable rows -->
-                                        <div>
-                                            {{ $judges->links() }}
-                                        </div>
+                                        @if ($judges->hasPages())
+                                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                                <small class="text-muted">Showing {{ $judges->firstItem() }}&ndash;{{ $judges->lastItem() }} of {{ $judges->total() }}</small>
+                                                {{ $judges->links() }}
+                                            </div>
+                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -197,7 +226,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="exampleModalLabel">Are you sure to delete this deduction?</h1>
+                    <h1 class="modal-title fs-5" id="exampleModalLabel">Are you sure to delete this judge?</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">

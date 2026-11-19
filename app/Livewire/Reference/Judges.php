@@ -16,26 +16,51 @@ class Judges extends Component
 {
     use WithPagination;
     public $id, $judge, $nickname, $selectedCategories = [], $selectedCateg, $password;
-    public $is_active = 1, $selectedStatus;
+    public $is_active = 1, $selectedStatus, $search = '';
     public function updated($propertyName)
     {
-        if (in_array($propertyName, ['selectedCateg', 'selectedStatus'])) {
+        if (in_array($propertyName, ['selectedCateg', 'selectedStatus', 'search'])) {
             $this->resetPage();
         }
     }
+    public function clearFilters()
+    {
+        $this->reset('search', 'selectedCateg', 'selectedStatus');
+        $this->resetPage();
+    }
+
+    /** Active categories, cached for the request (used by the filter, the badges and the modal). */
+    #[Computed]
+    public function categories()
+    {
+        return Category::where('is_active', 1)->get(['category', 'description']);
+    }
+
     public function render()
     {
-        $judges = RefJudge::with('user:id,email')->when($this->selectedCateg, function ($query) {
+        $search = trim((string) $this->search);
+        $judges = RefJudge::query()
+            ->select('id', 'judge', 'nickname', 'category', 'user_id', 'is_active')
+            ->with('user:id,email')
+            ->when($search !== '', function ($query) use ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('judge', 'like', "%{$search}%")
+                    ->orWhere('nickname', 'like', "%{$search}%")
+                    ->orWhereHas('user', fn ($u) => $u->where('email', 'like', "%{$search}%"));
+            });
+        })->when($this->selectedCateg, function ($query) {
             $query->whereJsonContains('category', $this->selectedCateg);
         })->when($this->selectedStatus !== '' && $this->selectedStatus !== null, function ($query) {
             $query->where('is_active', $this->selectedStatus);
         })->orderByNumber()->paginate(10);
-        $categories = Category::where('is_active', 1)->get();
-        return view('livewire.reference.judges', compact('judges', 'categories'));
+        $categories = $this->categories;
+        $categoryLabels = $categories->pluck('description', 'category');
+        $hasFilters = $search !== '' || $this->selectedCateg || ($this->selectedStatus !== '' && $this->selectedStatus !== null);
+        return view('livewire.reference.judges', compact('judges', 'categories', 'categoryLabels', 'hasFilters'));
     }
     public function addJudge()
     {
-        $this->reset();
+        $this->resetExcept('search', 'selectedCateg', 'selectedStatus');
         $this->is_active = 1;
         $this->dispatch('openModal');
     }
