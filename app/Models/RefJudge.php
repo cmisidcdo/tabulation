@@ -20,6 +20,22 @@ class RefJudge extends Model
     {
         return $query->whereJsonContains('ref_judges.category', $category);
     }
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+    /**
+     * Order by judge number (nickname, a string column) numerically: 1, 2, … 10, 11.
+     * Judges without a number go last. Portable across MySQL and SQLite.
+     */
+    public function scopeOrderByNumber($query)
+    {
+        return $query
+            ->orderByRaw("CASE WHEN ref_judges.nickname IS NULL OR ref_judges.nickname = '' THEN 1 ELSE 0 END")
+            ->orderByRaw('LENGTH(ref_judges.nickname)')
+            ->orderBy('ref_judges.nickname')
+            ->orderBy('ref_judges.id');
+    }
     public function scopeActive($query)
     {
         return $query->where('ref_judges.is_active', 1);

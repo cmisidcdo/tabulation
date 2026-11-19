@@ -6,7 +6,9 @@ use App\Models\Category;
 use Livewire\Component;
 use App\Models\RefJudge;
 use App\Models\User;
+use App\Support\JudgeEmail;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Computed;
 use Illuminate\Support\Facades\Hash;
 use Livewire\WithPagination;
 
@@ -23,11 +25,11 @@ class Judges extends Component
     }
     public function render()
     {
-        $judges = RefJudge::when($this->selectedCateg, function ($query) {
+        $judges = RefJudge::with('user:id,email')->when($this->selectedCateg, function ($query) {
             $query->whereJsonContains('category', $this->selectedCateg);
         })->when($this->selectedStatus !== '' && $this->selectedStatus !== null, function ($query) {
             $query->where('is_active', $this->selectedStatus);
-        })->orderBy('id', 'desc')->paginate(10);
+        })->orderByNumber()->paginate(10);
         $categories = Category::where('is_active', 1)->get();
         return view('livewire.reference.judges', compact('judges', 'categories'));
     }
@@ -78,15 +80,20 @@ class Judges extends Component
             'is_active' => 'required|boolean',
         ]);
 
-        DB::transaction(function () {
-
+        [$email, $isNewLogin] = DB::transaction(function () {
             $judge = RefJudge::findOrNew($this->id);
-            $user =  User::findOrNew($judge->user_id);
+            $user = $judge->user_id ? User::find($judge->user_id) : null;
 
-            $user->name  = $this->judge;
-            $user->email = $this->generateEmailFromName($this->judge);
-            $user->role = 'user';
-            $user->password = Hash::make('password');
+            // The login (email + password) is created once. Editing a judge — even renaming
+            // them — keeps it, so the judge's username and password never change unexpectedly.
+            $isNewLogin = !$user;
+            if ($isNewLogin) {
+                $user = new User();
+                $user->email = JudgeEmail::generate($this->judge);
+                $user->role = 'user';
+                $user->password = Hash::make('password');
+            }
+            $user->name = $this->judge;
             $user->is_active = (int) $this->is_active;
             $user->save();
 
@@ -96,29 +103,25 @@ class Judges extends Component
             $judge->user_id = $user->id;
             $judge->is_active = (int) $this->is_active;
             $judge->save();
+            $this->id = $judge->id;
 
-            return session()->flash('status', 'Sucessfully saved!');
+            return [$user->email, $isNewLogin];
         });
+
+        return session()->flash('status', $isNewLogin
+            ? "Successfully saved! Login: {$email} / password"
+            : "Successfully saved! Login: {$email}");
     }
-    private static function generateEmailFromName(string $name, string $domain = 'tabulation.com'): string
+
+    /** Login email shown in the modal: the generated one while adding, the existing one while editing. */
+    #[Computed]
+    public function loginEmail(): ?string
     {
-        // Convert name to lowercase
-        $email = strtolower($name);
-
-        // Replace spaces with dots
-        $email = str_replace(' ', '.', $email);
-
-        // Remove any characters that are not alphanumeric or dots
-        $email = preg_replace('/[^a-z0-9.]/', '', $email);
-
-        // Ensure no multiple dots
-        $email = preg_replace('/\.\.+/', '.', $email);
-
-        // Trim leading/trailing dots
-        $email = trim($email, '.');
-
-        // Append the domain
-        return $email . '@' . $domain;
+        if ($this->id) {
+            $existing = RefJudge::find($this->id)?->user?->email;
+            if ($existing) return $existing;
+        }
+        return trim((string) $this->judge) !== '' ? JudgeEmail::generate($this->judge) : null;
     }
     public function deleteJudge($id)
     {

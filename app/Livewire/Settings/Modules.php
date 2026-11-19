@@ -7,12 +7,15 @@ use App\Models\Setting;
 use App\Models\RefCriteria;
 use App\Models\RefParticipant;
 use App\Models\RefJudge;
+use App\Services\CategoryRenameService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Illuminate\Support\Str;
-use function Laravel\Prompts\error;
 
 class Modules extends Component
 {
@@ -53,13 +56,22 @@ class Modules extends Component
 
     public function clear()
     {
-        $this->reset();
-        $this->resetValidation();
+        // Form only — keeps the page's search/status filters
+        $this->resetForm();
     }
 
     public function addModule()
     {
+        // Start from a clean form: a leftover category_id from a previous Edit would make
+        // "Add" overwrite (and rename) that category instead of creating a new one.
+        $this->resetForm();
         $this->dispatch('openModal');
+    }
+
+    private function resetForm(): void
+    {
+        $this->reset(['category_id', 'category', 'description', 'display_participant', 'is_active', 'winners', 'tabulation_mode']);
+        $this->resetValidation();
     }
 
     public function render()
@@ -90,23 +102,70 @@ class Modules extends Component
     {
         $this->validate();
 
+        $existing = $this->category_id ? Category::find($this->category_id) : null;
+        if ($this->category_id && !$existing) {
+            return session()->flash('error', 'This category no longer exists.');
+        }
+
+        // The slug is the link to every participant, judge, criteria and score of the category.
+        // Keep a stored slug exactly as-is unless the user actually changed it, so editing only
+        // the description never re-normalises it (e.g. "Street_Dance" → "street-dance").
+        $slug = Str::slug($this->category);
+        if ($existing && Str::slug($existing->category) === $slug) {
+            $slug = $existing->category;
+        }
+
+        // Only check uniqueness when the code is new/changing, so a pre-existing duplicate
+        // can still have its description, winners, etc. edited.
+        if (!$existing || $existing->category !== $slug) {
+            $this->validateSlug($slug);
+        }
+
         try {
-            Category::updateOrCreate(
-                ['id' => $this->category_id],
-                [
-                    'category' => Str::slug($this->category),
+            $relinked = DB::transaction(function () use ($existing, $slug) {
+                $relinked = [];
+                if ($existing && $existing->category !== $slug) {
+                    $relinked = CategoryRenameService::rename($existing->category, $slug);
+                }
+
+                $category = $existing ?? new Category(['icon' => '<i class="bi bi-box-seam"></i>']);
+                $category->fill([
+                    'category' => $slug,
                     'description' => $this->description,
                     'winners' => $this->winners,
                     'is_active' => $this->is_active,
                     'display_participant' => $this->display_participant,
                     'tabulation_mode' => $this->tabulation_mode,
-                    'icon' => '<i class="bi bi-box-seam"></i>'
-                ]
-            );
+                ])->save();
+
+                return $relinked;
+            });
         } catch (\Throwable $th) {
-            //throw $th;
-            return error($th->getMessage());
+            report($th);
+            return session()->flash('error', 'Failed to save: ' . $th->getMessage());
         }
+
+        $message = 'Successfully saved!';
+        if ($relinked) {
+            $parts = collect($relinked)->map(fn($n, $table) => $n . ' ' . str_replace('_', ' ', $table))->implode(', ');
+            $message .= ' Code changed to "' . $slug . '"; re-linked ' . $parts . '.';
+        }
+
+        $this->resetForm();
+        $this->dispatch('hideModal');
+        session()->flash('status', $message);
+    }
+
+    private function validateSlug(string $slug): void
+    {
+        Validator::make(
+            ['category' => $slug],
+            ['category' => ['required', Rule::unique('categories', 'category')->ignore($this->category_id)]],
+            [
+                'category.required' => 'The category code must contain letters or numbers.',
+                'category.unique' => 'Another category already uses the code "' . $slug . '".',
+            ]
+        )->validate();
     }
 
     public function editModule($id)
@@ -142,7 +201,7 @@ class Modules extends Component
         $participants = RefParticipant::category($slug)->get()
             ->sortBy('participant_no', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
-        $judges       = RefJudge::active()->category($slug)->get();
+        $judges       = RefJudge::active()->category($slug)->orderByNumber()->get();
 
         $options = new Options();
         $options->set('isRemoteEnabled', false);

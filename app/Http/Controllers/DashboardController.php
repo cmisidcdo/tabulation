@@ -80,7 +80,7 @@ class DashboardController extends Controller
             ->limit(3)
             ->get();
         //COMPLETION
-        $judges = RefJudge::active()->get();
+        $judges = RefJudge::active()->orderByNumber()->get();
 
         return view('dashboard', compact('quizProgress', 'oralProgress', 'posterProgress', 'judges', 'topPoster', 'topQuiz', 'topOral'));
     }

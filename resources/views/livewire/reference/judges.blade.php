@@ -59,6 +59,9 @@
                                                         </td>
                                                         <td>
                                                             <span class="fw-semibold">{{ $item->judge }}</span>
+                                                            @if ($item->user?->email)
+                                                                <div class="small text-muted"><i class="bi bi-person-badge"></i> {{ $item->user->email }}</div>
+                                                            @endif
                                                         </td>
                                                         <td>
                                                             @foreach ($item->category as $cat)
@@ -128,7 +131,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="exampleModalLabel">Add</h1>
+                    <h1 class="modal-title fs-5" id="exampleModalLabel">{{ $id ? 'Edit' : 'Add' }}</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form wire:submit.prevent="saveJudge">
@@ -140,7 +143,15 @@
                         </div>
                         <div class="mb-3">
                             <label for="judgeName" class="form-label">Judge Name</label>
-                            <input type="text" class="form-control" wire:model="judge" id="judgeName" placeholder="Enter judge's name">
+                            <input type="text" class="form-control" wire:model.live.debounce.400ms="judge" id="judgeName" placeholder="e.g. June Sab Delacerna">
+                            @if ($this->loginEmail)
+                                <div class="form-text">
+                                    <i class="bi bi-person-badge"></i> Login email: <strong>{{ $this->loginEmail }}</strong>
+                                    @unless ($id)
+                                        &middot; default password: <strong>password</strong>
+                                    @endunless
+                                </div>
+                            @endif
                         </div>
                         <div class="mb-3">
                             <label for="category">Event Judge</label>

@@ -29,7 +29,7 @@ class ReportService
 
         //get judges base on user role
         if ($isAdmin && $this->byJudge == null) {
-            $this->judges = RefJudge::active()->category($this->type)->get();
+            $this->judges = RefJudge::active()->category($this->type)->orderByNumber()->get();
         } else {
             //get judges base on byJudge
             if ($this->byJudge) {

@@ -27,7 +27,7 @@ class EventRankingByRank extends Component
 
         $category = Category::where('category', $this->selectedCategory)->first();
         $participants = RefParticipant::category($this->selectedCategory)->get();
-        $judges =  RefJudge::active()->category($this->selectedCategory)->get();
+        $judges =  RefJudge::active()->category($this->selectedCategory)->orderByNumber()->get();
         $criterias = RefCriteria::category($this->selectedCategory)->get();
         $percentage = $this->percentage;
         $isWeighted = $criterias->whereNotNull('segment')->whereNotNull('segment_weight')->isNotEmpty();

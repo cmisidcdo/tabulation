@@ -19,10 +19,10 @@ class Oral extends Component
     public function render()
     {
         $participants = RefParticipant::where('participant_no', 'like', '%' . $this->search . '%')->where('category', 'oral')->get();
-        $judges = RefJudge::where('id', 'like', '%' . $this->judge_id . '%')->active()->where('category', 'oral')->get();
+        $judges = RefJudge::where('id', 'like', '%' . $this->judge_id . '%')->active()->where('category', 'oral')->orderByNumber()->get();
         $criterias = RefCriteria::where('category', 'oral')->get();
         $part = RefParticipant::where('category', 'oral')->get();
-        $jud  = RefJudge::active()->where('category', 'oral')->get();
+        $jud  = RefJudge::active()->where('category', 'oral')->orderByNumber()->get();
         return view('livewire.oral', compact('participants', 'judges', 'criterias', 'part', 'jud'));
     }
     public function saveScore($participant_id, $criteria_id, $judge_id, $score)
@@ -54,7 +54,7 @@ class Oral extends Component
     public function generateReport()
     {
         $paper = array(0, 0, 1400, 850);
-        $judges = RefJudge::where('category', 'oral')->get();
+        $judges = RefJudge::where('category', 'oral')->orderByNumber()->get();
         $participants = RefParticipant::where('category', 'oral')
             ->leftjoin('orals', 'ref_participants.id', '=', 'orals.participant_id')
             ->leftjoin('oral_deductions', 'ref_participants.id', '=', 'oral_deductions.participant_id')

@@ -32,7 +32,7 @@ class GroupRankingReport extends Component
         ]);
 
         $category  = Category::where('category', $this->selectedCategory)->first();
-        $judges    = RefJudge::active()->category($this->selectedCategory)->get();
+        $judges    = RefJudge::active()->category($this->selectedCategory)->orderByNumber()->get();
         $criterias = RefCriteria::category($this->selectedCategory)->get();
         $members   = RefParticipant::category($this->selectedCategory)
             ->whereNotNull('group_name')

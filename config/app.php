@@ -16,6 +16,12 @@ return [
     'name' => env('APP_NAME', 'Laravel'),
 
     /*
+    | Domain for auto-generated judge logins (e.g. delacerna@tabulation.com).
+    | Keep it an internal, non-real domain so no real person's inbox is used.
+    */
+    'judge_email_domain' => env('JUDGE_EMAIL_DOMAIN', 'tabulation.com'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------

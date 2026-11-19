@@ -73,7 +73,7 @@ class Higalaay extends Component
         $criterias = RefCriteria::where('category', $this->type)->get();
 
         // Active judges of the category; the visible columns are a subset of these.
-        $jud = RefJudge::active()->category($this->type)->get();
+        $jud = RefJudge::active()->category($this->type)->orderByNumber()->get();
         if ($isAdmin) {
             $judges = $this->judge_id ? $jud->where('id', (int) $this->judge_id)->values() : $jud;
         } else {

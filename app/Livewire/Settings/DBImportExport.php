@@ -36,7 +36,7 @@ class DBImportExport extends Component
     public function render()
     {
         $categories = Category::where('is_active', 1)->get();
-        $judges = RefJudge::whereJsonContains('category', $this->category_name)->get();
+        $judges = RefJudge::whereJsonContains('category', $this->category_name)->orderByNumber()->get();
         return view('livewire.settings.db-import-export', compact('judges', 'categories'));
     }
     public function updatedJudge()

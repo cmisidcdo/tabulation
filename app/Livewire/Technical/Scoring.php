@@ -136,7 +136,7 @@ class Scoring extends Component
         }
 
         // Setup: all judges for assignment
-        $allJudges = $isAdmin ? RefJudge::active()->category($this->type)->get() : collect();
+        $allJudges = $isAdmin ? RefJudge::active()->category($this->type)->orderByNumber()->get() : collect();
 
         return view('livewire.technical.scoring', compact(
             'technicalCategories',
