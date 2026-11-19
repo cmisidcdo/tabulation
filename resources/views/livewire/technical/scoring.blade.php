@@ -527,8 +527,8 @@
         }
 
         .score-input:focus {
-            border-color: #0d6efd;
-            box-shadow: 0 0 0 3px rgba(13, 110, 253, .15);
+            border-color: var(--app-accent, #1d4ed8);
+            box-shadow: 0 0 0 3px rgba(29, 78, 216, .15);
         }
 
         .score-input.scored {

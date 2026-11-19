@@ -14,10 +14,6 @@
     <link href="{{ asset('img/cdo-seal.png') }}" rel="icon">
     <link href="{{ asset('img/cdo-seal.png') }}" rel="apple-touch-icon">
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.gstatic.com" rel="preconnect">
-    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
-
     <script src="{{ asset('js/jquery-3.7.1.js') }}"></script>
 
     <!-- Vendor CSS Files -->
@@ -36,20 +32,18 @@
     <!-- Template Main CSS File -->
     <link href="{{ asset('css/style.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/theme.css') }}">
     <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"> -->
 
     <!-- Scripts -->
     <!-- @vite(['resources/sass/app.scss', 'resources/js/app.js']) -->
 </head>
 
-<body>
+<body class="{{ auth()->guest() ? 'auth-bg' : '' }}">
     @auth
         @include('layouts.header')
         @include('layouts.sidebar')
     @endauth
-
-    <!-- Animated Particles Background -->
-    <div id="particles-js" class="position-fixed top-0 start-0 w-100 h-100 bg-white" style="z-index: -1;"></div>
 
     <div id="app">
         @yield('content')
@@ -74,66 +68,6 @@
     <!-- Template Main JS File -->
     <script src="{{ asset('js/main.js') }}"></script>
 
-    <!-- Particle JS Script -->
-    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-    <script>
-        const isMobile = window.innerWidth <= 768;
-        particlesJS("particles-js", {
-            "particles": {
-                "number": {
-                    "value": isMobile ? 20 : 65,
-                    "density": {
-                        "enable": true,
-                        "value_area": 800
-                    }
-                },
-                "color": {
-                    "value": "#0d6efd"
-                },
-                "shape": {
-                    "type": "circle"
-                },
-                "opacity": {
-                    "value": 0.3,
-                    "random": true
-                },
-                "size": {
-                    "value": 3,
-                    "random": true
-                },
-                "line_linked": {
-                    "enable": !isMobile,
-                    "distance": 150,
-                    "color": "#6c757d",
-                    "opacity": 0.4,
-                    "width": 1
-                },
-                "move": {
-                    "enable": true,
-                    "speed": isMobile ? 1 : 2,
-                    "direction": "none",
-                    "out_mode": "bounce"
-                }
-            },
-            "interactivity": {
-                "events": {
-                    "onhover": {
-                        "enable": !isMobile,
-                        "mode": "grab"
-                    }
-                },
-                "modes": {
-                    "grab": {
-                        "distance": 200,
-                        "line_linked": {
-                            "opacity": 0.5
-                        }
-                    }
-                }
-            },
-            "retina_detect": true
-        });
-    </script>
 </body>
 
 </html>

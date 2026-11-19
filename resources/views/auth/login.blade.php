@@ -43,7 +43,7 @@
                         </div>
 
                         <!-- Login Card -->
-                        <div class="card shadow-lg rounded-4 border-0">
+                        <div class="card shadow-sm rounded-4">
                             <div class="card-body p-5">
 
                                 <div class="mb-4 text-center">

@@ -198,7 +198,7 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", () => {
-        const makeDonut = (elementId, value, color = '#0d6efd') => {
+        const makeDonut = (elementId, value, color = '#1d4ed8') => {
             echarts.init(document.getElementById(elementId)).setOption({
                 series: [{
                     type: 'pie',

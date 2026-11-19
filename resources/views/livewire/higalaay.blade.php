@@ -448,8 +448,8 @@
             transition: border-color .15s, background .15s;
         }
         .score-input:focus {
-            border-color: #0d6efd;
-            box-shadow: 0 0 0 3px rgba(13,110,253,.15);
+            border-color: var(--app-accent, #1d4ed8);
+            box-shadow: 0 0 0 3px rgba(29,78,216,.15);
         }
         .score-input.scored {
             background: #f0fff4;
@@ -499,8 +499,8 @@
 
         /* Per-cell save feedback (classes toggled by the script below) */
         .score-input.is-saving {
-            border-color: #0d6efd;
-            background-image: linear-gradient(90deg, transparent, rgba(13,110,253,.12), transparent);
+            border-color: var(--app-accent, #1d4ed8);
+            background-image: linear-gradient(90deg, transparent, rgba(29,78,216,.12), transparent);
             background-size: 200% 100%;
             animation: score-saving 1s linear infinite;
         }

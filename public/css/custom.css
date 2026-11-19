@@ -43,12 +43,7 @@
 
 /* End Random Profile Picture */
 
-.bg-animation {
-    background: linear-gradient(-45deg, #0d6efd, #6610f2, #6f42c1, #20c997);
-    background-size: 400% 400%;
-    animation: gradientBG 12s ease infinite;
-}
-
+/* gradientBG keyframes are used by body.auth-bg in theme.css */
 @keyframes gradientBG {
     0% {
         background-position: 0% 50%;
