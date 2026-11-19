@@ -9,6 +9,8 @@ use App\Models\Higalaay as ModelsHigalaay;
 use App\Models\HigalaayDeduction;
 use App\Models\RefJudge;
 use App\Models\TechnicalScore;
+use App\Services\HigalaayScoring;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Livewire\Component;
@@ -20,6 +22,10 @@ class DBImportExport extends Component
 {
     use WithFileUploads;
     public $category_name, $judge_id, $excel_file, $count, $email, $password;
+    // Offline judge app backup import
+    public $backup_file;
+    public bool $backup_force = false;
+    public array $backupReport = [];
     public $api_url = 'https://services.cagayandeoro.gov.ph:8087/tabulation/api/tab-v1';
 
     public function mount()
@@ -51,6 +57,57 @@ class DBImportExport extends Component
         ]);
         return Excel::download(new HigalaayExport($this->category_name, $this->judge_id), 'higalaay.xlsx');
     }
+    /**
+     * Import a backup file exported by the offline judge app (public/judge-app) from a device
+     * that couldn't upload. Uses the same conflict check as an upload from the app.
+     */
+    public function importJudgeBackup()
+    {
+        abort_unless(Auth::user()?->role === 'admin', 403);
+        $this->validate(['backup_file' => 'required|file|mimes:json,txt|max:5120']);
+
+        $data = json_decode((string) file_get_contents($this->backup_file->getRealPath()), true);
+        if (!is_array($data) || ($data['app'] ?? null) !== 'tabulation-judge-app' || empty($data['judge']['id']) || !is_array($data['events'] ?? null)) {
+            $this->addError('backup_file', 'This is not a judge app backup file.');
+            return;
+        }
+        $judge = RefJudge::find((int) $data['judge']['id']);
+        if (!$judge) {
+            $this->addError('backup_file', 'The judge in this file does not exist on this server.');
+            return;
+        }
+
+        $scoring = app(HigalaayScoring::class);
+        $events = [];
+        foreach ($data['events'] as $event) {
+            if (!is_array($event)) continue;
+            $category = (string) ($event['category'] ?? '');
+            $items = collect($event['scores'] ?? [])
+                ->filter(fn($s) => is_array($s) && isset($s['participant_id'], $s['criteria_id']) && is_numeric($s['score'] ?? null))
+                ->map(fn($s) => [
+                    'participant_id' => (int) $s['participant_id'],
+                    'criteria_id' => (int) $s['criteria_id'],
+                    'score' => (float) $s['score'],
+                    'base' => is_numeric($s['base'] ?? null) ? (float) $s['base'] : null,
+                    'force' => (bool) $this->backup_force,
+                ])->values()->all();
+
+            $res = $scoring->applyBatch(Auth::user(), $category, $judge, $items, 'Judge app backup');
+            $events[] = [
+                'event' => (string) ($event['description'] ?? $category),
+                'counts' => $res['counts'],
+                'errors' => collect($res['results'])->where('status', 'rejected')->pluck('error')->unique()->values()->all(),
+            ];
+        }
+
+        $this->backupReport = [
+            'judge' => $judge->judge,
+            'exported_at' => (string) ($data['exported_at'] ?? ''),
+            'events' => $events,
+        ];
+        $this->backup_file = null;
+    }
+
     public function importDatabase()
     {
         $this->validate([

@@ -86,6 +86,10 @@ Route::get('/vote/{slug}', [PeoplesChoiceController::class, 'vote'])->name('vote
 Route::get('/display_peoples_choice/{slug}', [PeoplesChoiceController::class, 'led'])->name('display_peoples_choice');
 
 
+// -----------------------------------OFFLINE JUDGE APP (static PWA in public/judge-app)-----------------------------------
+// Only reached when the web server doesn't serve the directory index itself
+Route::redirect('/judge-app', '/judge-app/index.html');
+
 // -----------------------------------LED WALL DISPLAY-----------------------------------
 
 //ORAL

@@ -143,6 +143,59 @@
                             </form>
                         </div>
 
+                        @if (auth()->user()->role === 'admin')
+                            <hr>
+                            <!-- Offline judge app backup -->
+                            <div>
+                                <h6 class="text-center">Import offline judge app backup</h6>
+                                <p class="text-muted small text-center">
+                                    For a judge whose device couldn't upload: in the judge app, Menu → <em>Export backup file</em>, then import the <code>.json</code> file here.
+                                </p>
+                                <form wire:submit.prevent="importJudgeBackup">
+                                    <div class="mb-2">
+                                        <input type="file" accept=".json,application/json" class="form-control @error('backup_file') is-invalid @enderror" wire:model="backup_file">
+                                        @error('backup_file')
+                                            <span class="text-danger small">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="backup_force" wire:model="backup_force">
+                                        <label class="form-check-label small" for="backup_force">
+                                            Overwrite scores that were changed on the server after the judge downloaded the event
+                                        </label>
+                                    </div>
+                                    <div class="text-center">
+                                        <button class="btn btn-primary px-4" type="submit" wire:loading.attr="disabled" wire:target="backup_file,importJudgeBackup">
+                                            <i class="bi bi-upload me-1"></i> Import backup
+                                        </button>
+                                    </div>
+                                </form>
+
+                                @if ($backupReport)
+                                    <div class="alert alert-info mt-3 mb-0 small">
+                                        <div class="fw-semibold mb-1">
+                                            {{ $backupReport['judge'] }}
+                                            @if ($backupReport['exported_at'])
+                                                · exported {{ \Illuminate\Support\Carbon::parse($backupReport['exported_at'])->timezone(config('app.timezone'))->format('M j, g:i A') }}
+                                            @endif
+                                        </div>
+                                        @foreach ($backupReport['events'] as $ev)
+                                            <div>
+                                                <strong>{{ $ev['event'] }}:</strong>
+                                                {{ $ev['counts']['saved'] }} saved, {{ $ev['counts']['same'] }} already up to date
+                                                @if ($ev['counts']['conflict'])
+                                                    , <span class="text-danger">{{ $ev['counts']['conflict'] }} changed on the server (not overwritten; tick the box above to overwrite)</span>
+                                                @endif
+                                                @if ($ev['counts']['rejected'])
+                                                    , <span class="text-danger">{{ $ev['counts']['rejected'] }} rejected: {{ implode(', ', $ev['errors']) }}</span>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        @endif
+
                     </div>
                 </div>
 

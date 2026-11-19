@@ -1,0 +1,120 @@
+:root {
+    --ja-accent: #1d4ed8;
+    --ja-accent-soft: #eff6ff;
+    --ja-bg: #f1f5f9;
+    --ja-card: #ffffff;
+    --ja-text: #0f172a;
+    --ja-muted: #64748b;
+    --ja-border: #e2e8f0;
+    --ja-pending: #d97706;
+    --ja-pending-soft: #fffbeb;
+    --ja-ok: #198754;
+    --ja-ok-soft: #f0fff4;
+    --ja-danger: #dc3545;
+}
+
+html, body { background: var(--ja-bg); color: var(--ja-text); }
+body {
+    min-height: 100vh;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color: transparent;
+}
+.boot { padding: 40vh 16px 0; text-align: center; color: var(--ja-muted); }
+
+/* ---------- Top bar ---------- */
+.ja-top {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: .5rem;
+    padding: calc(.6rem + env(safe-area-inset-top)) 16px .6rem;
+    background: var(--ja-accent); color: #fff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .15);
+}
+.ja-top h1 { font-size: 1.05rem; font-weight: 700; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ja-top .sub { font-size: .78rem; opacity: .85; font-weight: 500; display: block; }
+.ja-top .btn-icon { color: #fff; border: 0; background: transparent; font-size: 1.35rem; padding: .1rem .35rem; line-height: 1; }
+.net-pill { font-size: .72rem; font-weight: 700; border-radius: 999px; padding: .2rem .55rem; background: rgba(255, 255, 255, .2); white-space: nowrap; }
+.net-pill.offline { background: #475569; }
+
+.ja-wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
+
+/* ---------- Cards ---------- */
+.ja-card { background: var(--ja-card); border: 1px solid var(--ja-border); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+.ja-card h2 { font-size: 1rem; font-weight: 700; margin: 0 0 .25rem; }
+.ja-muted { color: var(--ja-muted); font-size: .85rem; }
+.ja-banner { border-radius: 10px; padding: .65rem .9rem; margin-bottom: 12px; font-size: .9rem; font-weight: 600; }
+.ja-banner.pending { background: var(--ja-pending-soft); color: #92400e; border: 1px solid #fcd34d; }
+.ja-banner.info { background: var(--ja-accent-soft); color: #1e3a8a; border: 1px solid #bfdbfe; }
+.ja-banner.danger { background: #fff5f5; color: #991b1b; border: 1px solid #fecaca; }
+.ja-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.ja-actions .btn { flex: 1 1 auto; }
+
+.badge-pending { background: var(--ja-pending); }
+.progress { height: 6px; }
+
+/* ---------- Login ---------- */
+.ja-login { max-width: 400px; margin: 8vh auto 0; }
+.ja-login img { width: 72px; height: 72px; display: block; margin: 0 auto 12px; }
+
+/* ---------- Scoring ---------- */
+.ja-tools { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 12px; }
+.ja-tools .form-control, .ja-tools .form-select { flex: 1 1 160px; }
+.group-head { font-weight: 700; text-transform: uppercase; color: var(--ja-muted); font-size: .8rem; letter-spacing: .04em; margin: 18px 4px 8px; }
+
+.p-card { background: var(--ja-card); border: 1px solid var(--ja-border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+.p-card.complete { border-color: #86efac; }
+.p-head { display: flex; align-items: center; gap: .5rem; padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid var(--ja-border); }
+.p-head .no { font-weight: 800; font-size: 1.05rem; color: var(--ja-accent); }
+.p-head .name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-total { text-align: right; line-height: 1.1; }
+.p-total b { font-size: 1.15rem; }
+.p-total small { display: block; color: var(--ja-muted); font-size: .72rem; }
+
+.c-row { display: flex; align-items: center; gap: .75rem; padding: 8px 14px; border-bottom: 1px solid #f1f5f9; }
+.c-row:last-child { border-bottom: 0; }
+.c-row .label { flex: 1; min-width: 0; }
+.c-row .label div { font-weight: 600; }
+.seg-head { padding: 6px 14px; background: var(--ja-accent-soft); color: #1e3a8a; font-weight: 700; font-size: .8rem; }
+
+.score {
+    width: 96px; flex: 0 0 96px;
+    text-align: center; font-weight: 700; font-size: 1.15rem;
+    border-radius: 8px;
+}
+.score.has { background: var(--ja-ok-soft); border-color: #86efac; }
+/* Entered on this device, not uploaded yet */
+.score.dirty, .score.dirty:focus { background: var(--ja-pending-soft); border: 2px dashed var(--ja-pending); }
+.score.conflict, .score.conflict:focus { background: #fff5f5; border: 2px solid var(--ja-danger); }
+.score.flash { box-shadow: 0 0 0 3px rgba(25, 135, 84, .3); }
+.score:invalid { border-color: var(--ja-danger); }
+.unfinished-only .p-card.complete { display: none; }
+
+/* ---------- Bottom bar ---------- */
+.ja-bottom {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    display: flex; align-items: center; gap: .75rem;
+    padding: .65rem 16px calc(.65rem + env(safe-area-inset-bottom));
+    background: #fff; border-top: 1px solid var(--ja-border);
+    box-shadow: 0 -2px 10px rgba(15, 23, 42, .06);
+}
+.ja-bottom .info { flex: 1; font-size: .88rem; font-weight: 600; }
+.ja-bottom .info.pending { color: #92400e; }
+
+/* ---------- Dialog ---------- */
+.ja-dialog-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .5); z-index: 50; display: flex; align-items: flex-end; justify-content: center; }
+.ja-dialog { background: #fff; width: 100%; max-width: 560px; max-height: 85vh; overflow: auto; border-radius: 14px 14px 0 0; padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); }
+@media (min-width: 600px) { .ja-dialog-backdrop { align-items: center; } .ja-dialog { border-radius: 14px; } }
+.ja-dialog h3 { font-size: 1.05rem; font-weight: 700; }
+.conflict-row { border: 1px solid var(--ja-border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.conflict-row .vals { display: flex; gap: 1rem; font-size: .9rem; margin: 4px 0 8px; }
+
+/* ---------- Toast ---------- */
+.ja-toast {
+    position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 60;
+    transform: translate(-50%, 20px); max-width: 90vw;
+    padding: .6rem 1rem; border-radius: 8px; color: #fff; background: #343a40; font-weight: 600;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .2); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+}
+.ja-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.ja-toast.warning { background: #b8860b; }
+.ja-toast.danger { background: var(--ja-danger); }
+.ja-toast.success { background: var(--ja-ok); }

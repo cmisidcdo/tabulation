@@ -5,11 +5,11 @@ namespace App\Livewire;
 use App\Models\Category;
 use App\Models\Higalaay as ModelsHigalaay;
 use App\Models\HigalaayDeduction;
-use App\Models\Log;
 use App\Models\RefCriteria;
 use App\Models\RefDeduction;
 use App\Models\RefJudge;
 use App\Models\RefParticipant;
+use App\Services\HigalaayScoring;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Locked;
@@ -133,7 +133,7 @@ class Higalaay extends Component
 
     private function isLocked(): bool
     {
-        return $this->lockedMemo ??= !empty(\App\Models\Setting::get('scoring_locked_' . $this->type));
+        return $this->lockedMemo ??= app(HigalaayScoring::class)->isLocked($this->type);
     }
 
     private function isAdmin(): bool
@@ -173,44 +173,10 @@ class Higalaay extends Component
      */
     public function saveScore($participant_id, $criteria_id, $judge_id, $score)
     {
-        if (!$this->isAdmin() && $this->isLocked()) {
-            return ['ok' => false, 'error' => 'Scoring is locked.'];
-        }
-
-        // The judge column must be an active judge of this category; a non-admin may only
-        // write into their own column (judge_id comes from the browser and can't be trusted).
-        $judge = RefJudge::whereKey($judge_id)->active()->category($this->type)
-            ->when(!$this->isAdmin(), fn($q) => $q->where('user_id', Auth::id()))
-            ->first();
-        $criteria = RefCriteria::whereKey($criteria_id)->where('category', $this->type)->first();
-        $participantOk = RefParticipant::whereKey($participant_id)->category($this->type)->exists();
-        if (!$judge || !$criteria || !$participantOk) {
-            return ['ok' => false, 'error' => 'You cannot score this cell.'];
-        }
-
-        // Blank saves 0 (intended); clamp to 0..perfect_score
-        $value = is_numeric($score) ? (float) $score : 0;
-        $value = max(0, $value);
-        if ($criteria->perfect_score !== null && $value > $criteria->perfect_score) {
-            $value = (float) $criteria->perfect_score;
-        }
-
-        $higalaay = ModelsHigalaay::firstOrNew([
-            'participant_id' => $participant_id,
-            'category' => $this->type,
-            'criteria_id' => $criteria->id,
-            'judge_id' => $judge->id,
-        ]);
-        $oldScore = $higalaay->score;
-        $higalaay->score = $value;
-        $higalaay->save();
-
-        Log::create([
-            'user_id' => Auth::user()->id,
-            'activity' => $this->type . ' Higalaay id ' . $higalaay->id . ' Score has been updated from ' . $oldScore . ' to ' . $higalaay->score,
-        ]);
-
-        return ['ok' => true, 'score' => $value];
+        // Lock, judge-column ownership (judge_id comes from the browser), category membership,
+        // clamping and logging all live in the shared service.
+        return app(HigalaayScoring::class)
+            ->saveJudgeScore(Auth::user(), $this->type, $participant_id, $criteria_id, $judge_id, $score);
     }
     public function saveDeduction($participant_id, $score)
     {

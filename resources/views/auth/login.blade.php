@@ -83,6 +83,12 @@
                                     </div>
                                 </form>
 
+                                <div class="text-center mt-3">
+                                    <a href="{{ asset('judge-app/index.html') }}" class="small">
+                                        <i class="bi bi-wifi-off"></i> Judging where there's no internet? Open the offline judge app
+                                    </a>
+                                </div>
+
                             </div>
                         </div>
 
