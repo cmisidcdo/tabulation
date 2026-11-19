@@ -27,13 +27,33 @@ class ApiController extends Controller
                 'message' => 'Invalid Credentials'
             ], 401);
         }
-        $token = $user->createToken($user->name . '-AuthToken')->plainTextToken;
+        // The sync API copies whole tables (including user password hashes): admins only
+        if ($user->role !== 'admin') {
+            return response()->json([
+                'message' => 'Only admin accounts can use database sync.'
+            ], 403);
+        }
+        $token = $user->createToken($user->name . '-AuthToken', [self::SYNC_ABILITY])->plainTextToken;
         return response()->json([
             'access_token' => $token,
         ]);
     }
+
+    public const SYNC_ABILITY = 'sync';
+
+    /**
+     * Every sync endpoint needs an admin with a sync token. Older admin tokens have the "*"
+     * ability and still pass; judge-app tokens (ability "judge-app") and judge accounts don't.
+     */
+    private function authorizeSync(): void
+    {
+        $user = Auth::user();
+        abort_unless($user && $user->role === 'admin' && $user->tokenCan(self::SYNC_ABILITY), 403, 'Only admin accounts can use database sync.');
+    }
+
     public function saveData(Request $request)
     {
+        $this->authorizeSync();
         $higalaayInsertedData = 0;
         $higalaayUpdatedData = 0;
         $higalaayInsertedDeductionData = 0;
@@ -117,6 +137,7 @@ class ApiController extends Controller
     }
     public function getReference()
     {
+        $this->authorizeSync();
         $criteria = DB::table('ref_criterias')->get();
         $judges = DB::table('ref_judges')->where('is_active', 1)->get();
         $participants = DB::table('ref_participants')->get();
@@ -126,7 +147,10 @@ class ApiController extends Controller
         $technical_deductions = DB::table('technical_deductions')->get();
         $technical_judge_assignments = DB::table('technical_judge_assignments')->get();
         $technical_sub_criterias = DB::table('technical_sub_criterias')->get();
-        $users = DB::table('users')->where('role', '<>', 'admin')->get();
+        // Judges' accounts, so they can log in on the venue laptop with the same password.
+        // Explicit columns: never send remember_token (or any column added later by accident).
+        $users = DB::table('users')->where('role', '<>', 'admin')
+            ->get(['id', 'name', 'role', 'email', 'email_verified_at', 'password', 'is_active', 'created_at', 'updated_at']);
         $settings = DB::table('settings')->get();
 
         $logoKeys = ['report_logo_left_1', 'report_logo_left_2', 'report_logo_right', 'report_logo_right_2', 'report_watermark', 'report_footer'];
@@ -158,6 +182,7 @@ class ApiController extends Controller
     }
     public function downloadDatabase()
     {
+        $this->authorizeSync();
         $higalaays = Higalaay::get();
         $higalaay_deductions = HigalaayDeduction::get();
 

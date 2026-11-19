@@ -33,14 +33,6 @@
                 </a>
             </li>
         @endforeach
-        @if (auth()->user()->role != 'admin')
-            <li class="nav-item">
-                <a class="nav-link collapsed" href="{{ asset('judge-app/index.html') }}">
-                    <i class="bi bi-wifi-off"></i>
-                    <span>Offline judge app</span>
-                </a>
-            </li>
-        @endif
         @if (auth()->user()->role == 'admin')
             <hr>
             <li class="nav-item">
@@ -127,6 +119,17 @@
                 <a class="nav-link {{ Route::currentRouteName() == 'display-management' ? '' : 'collapsed' }}" href="{{ route('display-management') }}">
                     <i class="bi bi-activity"></i>
                     <span>LED Management</span>
+                </a>
+            </li>
+        @endif
+        @if (auth()->user()->role != 'admin')
+            {{-- Kept apart from the event list so it isn't mistaken for an event --}}
+            <hr>
+            <li class="nav-heading">Tools</li>
+            <li class="nav-item">
+                <a class="nav-link collapsed" href="{{ asset('judge-app/index.html') }}">
+                    <i class="bi bi-wifi-off"></i>
+                    <span>Offline judge app</span>
                 </a>
             </li>
         @endif
