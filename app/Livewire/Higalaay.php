@@ -16,21 +16,41 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class Higalaay extends Component
 {
-    public $type, $winner;
+    #[Locked]
+    public $type;
+    #[Locked]
+    public $winner;
     public $search, $selectedParticipant, $judge_id, $criteria_id, $base64pdf = '';
     public $showDropdown = false;
     public $suggestions = [];
     public $selectedGroup = '';
     public $deductionModel, $refDeductions = [];
     public $remarks, $duration, $oldDeductions, $totalDeductions = 0, $deductionSelected;
+
+    /** Per-request memo of the scoring lock (not persisted between requests). */
+    protected ?bool $lockedMemo = null;
+
     public function render()
     {
+        $isAdmin = Auth::user()->role == 'admin';
         $selected = $this->selectedParticipant;
         $group = trim((string) $this->selectedGroup);
+
+        // One query for every participant in the category: gives the group list and the
+        // participant count used by the judge progress bars.
+        $allParticipants = RefParticipant::category($this->type)->get(['id', 'group_name']);
+        $groups = $allParticipants->pluck('group_name')
+            ->map(fn($g) => trim((string) $g))
+            ->filter(fn($g) => $g !== '')
+            ->unique(fn($g) => mb_strtolower($g))
+            ->sort(fn($a, $b) => strnatcasecmp($a, $b))
+            ->values();
+
         $participants = RefParticipant::when(!empty($selected), function ($query) use ($selected) {
             $query->where('id', $selected);
         })->when($group !== '', function ($query) use ($group) {
@@ -39,16 +59,7 @@ class Higalaay extends Component
             ->sortBy('participant_no', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
 
-        // Group events (e.g. Storytelling): list the groups and keep each group's members together.
-        $groups = RefParticipant::category($this->type)
-            ->whereNotNull('group_name')
-            ->where('group_name', '!=', '')
-            ->pluck('group_name')
-            ->map(fn($g) => trim($g))
-            ->unique(fn($g) => mb_strtolower($g))
-            ->sort(fn($a, $b) => strnatcasecmp($a, $b))
-            ->values();
-
+        // Group events (e.g. Storytelling): keep each group's members together.
         if ($groups->isNotEmpty()) {
             $participants = $participants->sort(function ($a, $b) {
                 $ga = trim((string) $a->group_name);
@@ -61,18 +72,79 @@ class Higalaay extends Component
 
         $criterias = RefCriteria::where('category', $this->type)->get();
 
-        if (Auth::user()->role == 'admin') {
-            $judges = RefJudge::where('id', 'like', '%' . $this->judge_id . '%')->active()->category($this->type)->get();
+        // Active judges of the category; the visible columns are a subset of these.
+        $jud = RefJudge::active()->category($this->type)->get();
+        if ($isAdmin) {
+            $judges = $this->judge_id ? $jud->where('id', (int) $this->judge_id)->values() : $jud;
         } else {
-            $judges = RefJudge::where('user_id', Auth::user()->id)->active()->category($this->type)->get();
+            $judges = $jud->where('user_id', Auth::id())->values();
         }
 
-        $jud  = RefJudge::active()->category($this->type)->get();
+        // Preload every score and deduction shown on the page (replaces per-cell queries).
+        // Ordered newest-first so keyBy() keeps the oldest row, matching ->first() in saveScore.
+        $participantIds = $participants->pluck('id');
+        $scoreRows = ModelsHigalaay::where('category', $this->type)
+            ->whereIn('participant_id', $participantIds)
+            ->orderByDesc('id')
+            ->get(['id', 'participant_id', 'criteria_id', 'judge_id', 'score']);
+        $scoreMap = $scoreRows->keyBy(fn($s) => $s->participant_id . '-' . $s->criteria_id . '-' . $s->judge_id);
+        $scoresByParticipant = $scoreRows->groupBy('participant_id');
+        $deductions = HigalaayDeduction::where('category', $this->type)
+            ->whereIn('participant_id', $participantIds)
+            ->orderByDesc('id')
+            ->get()
+            ->keyBy('participant_id');
+
+        // Card totals and completion (scored cells over visible criteria x judge columns)
+        $myJudgeId = $isAdmin ? null : Auth::user()->judge?->id;
+        $cellsPerCard = $criterias->count() * $judges->count();
+        $cards = [];
+        foreach ($participants as $p) {
+            $done = 0;
+            foreach ($criterias as $c) {
+                foreach ($judges as $j) {
+                    if (isset($scoreMap[$p->id . '-' . $c->id . '-' . $j->id])) $done++;
+                }
+            }
+            $rows = $scoresByParticipant->get($p->id, collect());
+            $cards[$p->id] = [
+                'done' => $done,
+                'total_cells' => $cellsPerCard,
+                'complete' => $cellsPerCard > 0 && $done >= $cellsPerCard,
+                'total' => $isAdmin
+                    ? RefParticipant::computeHigalaayTotal($rows, $criterias, $jud->count(), true, null, $deductions->get($p->id)?->deduction ?? 0)
+                    : $rows->where('judge_id', $myJudgeId)->sum('score'),
+            ];
+        }
+
+        // Judge progress: one grouped count instead of 3 queries per judge
+        $possible = $allParticipants->count() * $criterias->count();
+        $scoredByJudge = ModelsHigalaay::where('category', $this->type)
+            ->whereNotNull('score')
+            ->whereIn('judge_id', $judges->pluck('id'))
+            ->groupBy('judge_id')
+            ->selectRaw('judge_id, COUNT(*) as c')
+            ->pluck('c', 'judge_id');
+        $judgeProgress = $judges->mapWithKeys(fn($j) => [
+            $j->id => $possible > 0 ? bong_format(($scoredByJudge[$j->id] ?? 0) / $possible * 100) : 0,
+        ]);
+
         $categoryName = Category::where('category', $this->type)->select('description', 'display_participant')->first();
         $this->calculateTotals();
-        $locked = !empty(\App\Models\Setting::get('scoring_locked_' . $this->type));
-        return view('livewire.higalaay', compact('jud', 'judges', 'participants', 'criterias', 'categoryName', 'locked', 'groups'));
+        $locked = $this->isLocked();
+        return view('livewire.higalaay', compact('jud', 'judges', 'participants', 'criterias', 'categoryName', 'locked', 'groups', 'scoreMap', 'deductions', 'cards', 'judgeProgress', 'isAdmin'));
     }
+
+    private function isLocked(): bool
+    {
+        return $this->lockedMemo ??= !empty(\App\Models\Setting::get('scoring_locked_' . $this->type));
+    }
+
+    private function isAdmin(): bool
+    {
+        return Auth::user()->role == 'admin';
+    }
+
     public function updatedSearch()
     {
         if (strlen($this->search) > 2) {
@@ -99,32 +171,50 @@ class Higalaay extends Component
             $this->showDropdown = false;
         }
     }
+    /**
+     * Save one score cell. Returns ['ok' => bool, 'score' => saved value, 'error' => message]
+     * so the page can show per-cell feedback.
+     */
     public function saveScore($participant_id, $criteria_id, $judge_id, $score)
     {
-        if (Auth::user()->role != 'admin' && !empty(\App\Models\Setting::get('scoring_locked_' . $this->type))) {
-            return;
-        }
-        $criteria = RefCriteria::find($criteria_id);
-        if ($criteria && $score > $criteria->perfect_score) {
-            $score = $criteria->perfect_score;
+        if (!$this->isAdmin() && $this->isLocked()) {
+            return ['ok' => false, 'error' => 'Scoring is locked.'];
         }
 
-        $higalaay = ModelsHigalaay::where('participant_id', $participant_id)->where('category', $this->type)->where('criteria_id', $criteria_id)->where('judge_id', $judge_id)->first();
-        if (!$higalaay) {
-            $higalaay = new ModelsHigalaay();
-            $higalaay->participant_id = $participant_id;
-            $higalaay->criteria_id = $criteria_id;
-            $higalaay->judge_id = $judge_id;
-            $higalaay->category = $this->type;
+        // The judge column must be an active judge of this category; a non-admin may only
+        // write into their own column (judge_id comes from the browser and can't be trusted).
+        $judge = RefJudge::whereKey($judge_id)->active()->category($this->type)
+            ->when(!$this->isAdmin(), fn($q) => $q->where('user_id', Auth::id()))
+            ->first();
+        $criteria = RefCriteria::whereKey($criteria_id)->where('category', $this->type)->first();
+        $participantOk = RefParticipant::whereKey($participant_id)->category($this->type)->exists();
+        if (!$judge || !$criteria || !$participantOk) {
+            return ['ok' => false, 'error' => 'You cannot score this cell.'];
         }
+
+        // Blank saves 0 (intended); clamp to 0..perfect_score
+        $value = is_numeric($score) ? (float) $score : 0;
+        $value = max(0, $value);
+        if ($criteria->perfect_score !== null && $value > $criteria->perfect_score) {
+            $value = (float) $criteria->perfect_score;
+        }
+
+        $higalaay = ModelsHigalaay::firstOrNew([
+            'participant_id' => $participant_id,
+            'category' => $this->type,
+            'criteria_id' => $criteria->id,
+            'judge_id' => $judge->id,
+        ]);
         $oldScore = $higalaay->score;
-        $higalaay->score = $score ? $score : 0;
+        $higalaay->score = $value;
         $higalaay->save();
 
         Log::create([
             'user_id' => Auth::user()->id,
             'activity' => $this->type . ' Higalaay id ' . $higalaay->id . ' Score has been updated from ' . $oldScore . ' to ' . $higalaay->score,
         ]);
+
+        return ['ok' => true, 'score' => $value];
     }
     public function generateReport()
     {
@@ -165,7 +255,11 @@ class Higalaay extends Component
     }
     public function saveDeduction($participant_id, $score)
     {
-        if (Auth::user()->role != 'admin' && !empty(\App\Models\Setting::get('scoring_locked_' . $this->type))) {
+        // Deductions are an admin-only control (the inputs are only rendered for admins)
+        if (!$this->isAdmin()) {
+            return;
+        }
+        if (!RefParticipant::whereKey($participant_id)->category($this->type)->exists()) {
             return;
         }
         $deduction = HigalaayDeduction::where('category', $this->type)->where('participant_id', $participant_id)->first();
@@ -173,12 +267,16 @@ class Higalaay extends Component
             $deduction = new HigalaayDeduction();
             $deduction->participant_id = $participant_id;
         }
-        $deduction->deduction = $score && $score != null ? $score : 0;
+        $deduction->deduction = is_numeric($score) ? max(0, $score) : 0;
         $deduction->category = $this->type;
         $deduction->save();
     }
     public function showDeductionDetails($participant_id)
     {
+        if (!$this->isAdmin()) {
+            return;
+        }
+        $this->resetErrorBag();
         $this->deductionSelected = $participant_id;
 
         $deduction = HigalaayDeduction::where('category', $this->type)->firstOrNew(['participant_id' => $participant_id]);
@@ -221,13 +319,16 @@ class Higalaay extends Component
     }
     public function saveCustomDeductions()
     {
-        if (Auth::user()->role != 'admin' && !empty(\App\Models\Setting::get('scoring_locked_' . $this->type))) {
+        if (!$this->isAdmin()) {
             return;
         }
+        $this->calculateTotals();
+        // Remarks/duration explain a deduction; not needed when nothing is deducted
+        $needsReason = $this->totalDeductions > 0;
         $this->validate([
             'refDeductions' => 'array',
-            'remarks' => 'required',
-            'duration' => 'required'
+            'remarks' => $needsReason ? 'required' : 'nullable',
+            'duration' => $needsReason ? 'required' : 'nullable',
         ]);
 
         $deduction = HigalaayDeduction::where('category', $this->type)->where('participant_id',  $this->deductionSelected)->first();

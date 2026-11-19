@@ -97,52 +97,62 @@ class RefParticipant extends Model
     }
     public function averageHigalaay($category, $criteria = null)
     {
-        $deduction = $this->higalaayDeduction($category)?->deduction ?? 0;
+        $isAdmin = Auth::user()->role == 'admin';
+        $judgeId = $isAdmin
+            ? null
+            : RefJudge::where('user_id', Auth::user()->id)->category($category)->value('id');
+
+        return self::computeHigalaayTotal(
+            $this->hasMany(Higalaay::class, 'participant_id', 'id')->where('category', $category)->get(),
+            RefCriteria::where('category', $category)->get(),
+            RefJudge::active()->category($category)->count(),
+            $isAdmin,
+            $judgeId,
+            $this->higalaayDeduction($category)?->deduction ?? 0,
+            $criteria,
+        );
+    }
+
+    /**
+     * Higalaay total computed from already-loaded rows (runs no queries), so the
+     * scoring page can total every participant from a single preloaded score set.
+     *
+     * @param  \Illuminate\Support\Collection  $scores      this participant's Higalaay rows for the category
+     * @param  \Illuminate\Support\Collection  $criterias   all RefCriteria of the category
+     * @param  int        $activeJudgeCount  active judges in the category (the panel size)
+     * @param  bool       $isAdmin           admin sees the panel average; a judge sees only their own scores
+     * @param  int|null   $judgeId           the judge's id (non-admin); null → no judge record → 0
+     * @param  float      $deduction         participant deduction (not applied for a single criteria)
+     * @param  RefCriteria|null $criteria    single-criteria view (per-criteria PDF) — no weighting
+     */
+    public static function computeHigalaayTotal($scores, $criterias, int $activeJudgeCount, bool $isAdmin, ?int $judgeId, $deduction, $criteria = null): float
+    {
+        $deduction = (float) $deduction;
+        if (!$isAdmin) {
+            if (!$judgeId) return 0;
+            $scores = $scores->where('judge_id', $judgeId);
+        }
 
         // Single-criteria filter (used for per-criteria PDF views) — no weighting
         if ($criteria) {
-            $relation = $this->hasMany(Higalaay::class, 'participant_id', 'id')
-                ->where('criteria_id', $criteria->id)
-                ->where('category', $category);
-            if (Auth::user()->role == 'admin') {
-                $judges = RefJudge::active()->category($category)->count();
-                return $judges > 0 ? $relation->sum('score') / $judges : 0;
-            }
-            $judge = RefJudge::where('user_id', Auth::user()->id)->category($category)->first();
-            return $judge ? $relation->where('judge_id', $judge->id)->sum('score') : 0;
+            $sum = $scores->where('criteria_id', $criteria->id)->sum('score');
+            if (!$isAdmin) return $sum;
+            return $activeJudgeCount > 0 ? $sum / $activeJudgeCount : 0;
         }
 
-        // Check for weighted segments
-        $allCriterias = RefCriteria::where('category', $category)->get();
-        $weighted = $allCriterias->whereNotNull('segment')->whereNotNull('segment_weight');
-
+        // Weighted segments
+        $weighted = $criterias->whereNotNull('segment')->whereNotNull('segment_weight');
         if ($weighted->isNotEmpty()) {
-            $judgeCount = RefJudge::active()->category($category)->count();
-            if ($judgeCount == 0) return 0;
-
-            // For non-admin, only use that judge's scores
-            $judgeId = null;
-            if (Auth::user()->role !== 'admin') {
-                $judge = RefJudge::where('user_id', Auth::user()->id)->category($category)->first();
-                if (!$judge) return 0;
-                $judgeId = $judge->id;
-                $judgeCount = 1;
-            }
+            if ($activeJudgeCount == 0) return 0;
+            $judgeCount = $isAdmin ? $activeJudgeCount : 1;
 
             $total = 0;
             foreach ($weighted->groupBy('segment') as $segCriterias) {
-                $segWeight   = $segCriterias->first()->segment_weight; // e.g. 20
-                $segMax      = $segCriterias->sum('perfect_score');    // e.g. 100
+                $segWeight = $segCriterias->first()->segment_weight; // e.g. 20
+                $segMax    = $segCriterias->sum('perfect_score');    // e.g. 100
                 if ($segMax == 0) continue;
 
-                $criteriaIds = $segCriterias->pluck('id');
-                $query = $this->hasMany(Higalaay::class, 'participant_id', 'id')
-                    ->where('category', $category)
-                    ->whereIn('criteria_id', $criteriaIds);
-
-                if ($judgeId) $query->where('judge_id', $judgeId);
-
-                $segScore = $query->sum('score'); // sum across all judges in segment
+                $segScore = $scores->whereIn('criteria_id', $segCriterias->pluck('id'))->sum('score');
                 // (segScore / judgeCount) = avg judge score for segment (max = segMax)
                 // normalize to weight: (avg / segMax) * segWeight
                 $total += ($segScore / $judgeCount / $segMax) * $segWeight;
@@ -151,14 +161,9 @@ class RefParticipant extends Model
             return round($total - $deduction, 4);
         }
 
-        // Original unweighted average
-        $relation = $this->hasMany(Higalaay::class, 'participant_id', 'id')->where('category', $category);
-        if (Auth::user()->role == 'admin') {
-            $judges = RefJudge::active()->category($category)->count();
-            return $judges > 0 ? ($relation->sum('score') / $judges) - $deduction : 0;
-        }
-        $judge = RefJudge::where('user_id', Auth::user()->id)->category($category)->first();
-        return $judge ? ($relation->where('judge_id', $judge->id)->sum('score')) - $deduction : 0;
+        // Unweighted average
+        if (!$isAdmin) return $scores->sum('score') - $deduction;
+        return $activeJudgeCount > 0 ? ($scores->sum('score') / $activeJudgeCount) - $deduction : 0;
     }
     public function getHigalaayScoreByJudge($judge_id, $category,  $criteria =  null)
     {
