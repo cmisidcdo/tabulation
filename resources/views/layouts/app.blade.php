@@ -10,9 +10,21 @@
 
     <title>Tabulation System</title>
 
+    @auth
+        {{-- Scopes the offline score queue to this user (public/js/score-outbox.js) --}}
+        <meta name="user-id" content="{{ auth()->id() }}">
+    @endauth
+
     <!-- Favicons -->
     <link href="{{ asset('img/cdo-seal.png') }}" rel="icon">
-    <link href="{{ asset('img/cdo-seal.png') }}" rel="apple-touch-icon">
+    <link href="{{ asset('img/pwa/apple-touch-icon.png') }}" rel="apple-touch-icon">
+
+    <!-- PWA -->
+    <link rel="manifest" href="{{ asset('manifest.json') }}">
+    <meta name="theme-color" content="#1d4ed8">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Tabulation">
 
     <script src="{{ asset('js/jquery-3.7.1.js') }}"></script>
 
@@ -33,6 +45,7 @@
     <link href="{{ asset('css/style.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
     <link rel="stylesheet" href="{{ asset('css/theme.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/score-outbox.css') }}">
     <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"> -->
 
     <!-- Scripts -->
@@ -67,6 +80,17 @@
 
     <!-- Template Main JS File -->
     <script src="{{ asset('js/main.js') }}"></script>
+    <script src="{{ asset('js/score-outbox.js') }}"></script>
+
+    <script>
+        // Service workers only run on HTTPS or localhost; on plain-HTTP LAN addresses this is skipped
+        if ('serviceWorker' in navigator && window.isSecureContext) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register(@js(asset('sw.js')), { scope: @js(rtrim(asset(''), '/') . '/') })
+                    .catch(function (err) { console.warn('Service worker not registered:', err); });
+            });
+        }
+    </script>
 
 </body>
 

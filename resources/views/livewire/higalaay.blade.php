@@ -259,6 +259,7 @@
                                                                                 data-p="{{ $participant->id }}"
                                                                                 data-c="{{ $criteria->id }}"
                                                                                 data-j="{{ $judge->id }}"
+                                                                                data-score-args="[{{ $participant->id }},{{ $criteria->id }},{{ $judge->id }}]"
                                                                                 data-max="{{ $criteria->perfect_score }}"
                                                                                 data-label="{{ $criteria->criteria }}"
                                                                                 aria-label="{{ $criteria->criteria }} — {{ $judge->judge }}"
@@ -468,6 +469,14 @@
             background: #fff5f5;
             box-shadow: 0 0 0 3px rgba(220,53,69,.2);
         }
+        /* Saved on this device only, waiting for the connection (score-outbox.js) */
+        .score-input.is-pending,
+        .score-input.is-pending:focus {
+            border-color: #d97706;
+            border-style: dashed;
+            background: #fffbeb;
+            box-shadow: 0 0 0 3px rgba(217,119,6,.22);
+        }
         @keyframes score-saving { from { background-position: 100% 0; } to { background-position: -100% 0; } }
         /* Out-of-range while typing */
         .score-input:invalid {
@@ -505,6 +514,7 @@
         .score-toast.show { opacity: 1; transform: translate(-50%, 0); }
         .score-toast.warning { background: #b8860b; }
         .score-toast.danger { background: #dc3545; }
+        .score-toast.success { background: #198754; }
     </style>
 </section>
 @assets
@@ -531,21 +541,17 @@
             toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2800);
         }
 
-        function setState(el, cls, ms) {
-            el.classList.remove('is-saving', 'is-saved', 'is-error');
-            if (!cls) return;
-            el.classList.add(cls);
-            if (ms) setTimeout(() => el.classList.remove(cls), ms);
-        }
-
-        // Save on change (fires on blur / Enter-navigation after the value was edited)
-        root.addEventListener('change', async (e) => {
-            const el = e.target;
-            if (!isScoreInput(el)) return;
-
-            const max = parseFloat(el.dataset.max);
-            const v = parseFloat(el.value);
-            if (!isNaN(v)) {
+        // Save on change (blur / Enter-navigation after an edit). The outbox keeps the score on
+        // this device until the server confirms it, so a Wi-Fi drop doesn't lose it.
+        ScoreOutbox.bind({
+            root,
+            wire: $wire,
+            scope: @js('higalaay:' . $type),
+            toast,
+            beforeSave(el) {
+                const max = parseFloat(el.dataset.max);
+                const v = parseFloat(el.value);
+                if (isNaN(v)) return;
                 if (v < 0) {
                     el.value = 0;
                     toast('Scores cannot be negative. Saved as 0.');
@@ -553,21 +559,7 @@
                     el.value = max;
                     toast(`${el.dataset.label}: the maximum is ${max}. Saved as ${max}.`);
                 }
-            }
-
-            setState(el, 'is-saving');
-            try {
-                const res = await $wire.saveScore(+el.dataset.p, +el.dataset.c, +el.dataset.j, el.value);
-                if (res && res.ok) {
-                    setState(el, 'is-saved', 1200);
-                } else {
-                    setState(el, 'is-error', 4000);
-                    toast((res && res.error) || 'Score was not saved.', 'danger');
-                }
-            } catch (err) {
-                setState(el, 'is-error', 4000);
-                toast('Score was not saved. Check the connection and try again.', 'danger');
-            }
+            },
         });
 
         // Enter / ArrowDown → next criteria for the same judge (continues into the next participant),

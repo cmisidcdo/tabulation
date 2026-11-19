@@ -159,7 +159,7 @@
                                                 @endphp
                                                 <td class="text-center p-1">
                                                     @if ($judgeId)
-                                                        <input type="number" class="form-control form-control-sm text-center fw-bold score-input {{ $existing ? 'scored' : '' }}" wire:change="saveScore({{ $participant->id }}, {{ $s->id }}, {{ $judgeId }}, $event.target.value)" value="{{ $existing ? $existing->score : '' }}" placeholder="—" min="0" max="{{ $s->max_score }}" step="0.5"
+                                                        <input type="number" class="form-control form-control-sm text-center fw-bold score-input {{ $existing ? 'scored' : '' }}" data-score-args="[{{ $participant->id }},{{ $s->id }},{{ $judgeId }}]" value="{{ $existing ? $existing->score : '' }}" placeholder="—" min="0" max="{{ $s->max_score }}" step="0.5"
                                                             oninput="
                                                                 const mx={{ $s->max_score }};
                                                                 const v=parseFloat(this.value)||0;
@@ -553,6 +553,9 @@
 
 @script
     <script>
+        // Scores are kept on this device until the server confirms them (public/js/score-outbox.js)
+        ScoreOutbox.bind({ root: $wire.$el, wire: $wire, scope: @js('technical:' . $type) });
+
         window.addEventListener('openDeductionModal', () => {
             new bootstrap.Modal(document.getElementById('technicalDeductionModal')).show();
         });

@@ -63,7 +63,7 @@
                                             <td>
                                                 <div class="input-group">
                                                     <span class="input-group-text bg-primary text-white">Q{{$i}}</span>
-                                                    <input type="number" max="1" wire:change="saveScore({{$item->id}}, '1', {{$i}}, $event.target.value)" class="form-control" value="{{ $score ? $score->score : '' }}" placeholder="Enter score" />
+                                                    <input type="number" max="1" data-score-args="[{{ $item->id }},1,{{ $i }}]" class="form-control" value="{{ $score ? $score->score : '' }}" placeholder="Enter score" />
                                                 </div>
                                             </td>
                                             @endfor
@@ -75,7 +75,7 @@
                                                 <td>
                                                     <div class="input-group">
                                                         <span class="input-group-text bg-warning text-white">Q{{$i}}</span>
-                                                        <input type="number" wire:change="saveScore({{$item->id}}, '2', {{$i}}, $event.target.value)" class="form-control" value="{{ $score ? $score->score : '' }}" placeholder="Enter score" />
+                                                        <input type="number" data-score-args="[{{ $item->id }},2,{{ $i }}]" class="form-control" value="{{ $score ? $score->score : '' }}" placeholder="Enter score" />
                                                     </div>
                                                 </td>
                                                 @endfor
@@ -87,7 +87,7 @@
                                                     <td>
                                                         <div class="input-group">
                                                             <span class="input-group-text bg-danger text-white">Q{{$i}}</span>
-                                                            <input type="number" wire:change="saveScore({{$item->id}}, '3', {{$i}}, $event.target.value)" class="form-control" value="{{ $score ? $score->score : '' }}" placeholder="Enter score" />
+                                                            <input type="number" data-score-args="[{{ $item->id }},3,{{ $i }}]" class="form-control" value="{{ $score ? $score->score : '' }}" placeholder="Enter score" />
                                                         </div>
                                                     </td>
                                                     @endfor
@@ -99,7 +99,7 @@
                                                         <td>
                                                             <div class="input-group">
                                                                 <span class="input-group-text bg-dark text-white">C{{$i}}</span>
-                                                                <input type="number" wire:change="saveScore({{$item->id}}, '4', {{$i}}, $event.target.value)" class="form-control" value="{{ $score ? $score->score : '' }}" placeholder="Enter score" />
+                                                                <input type="number" data-score-args="[{{ $item->id }},4,{{ $i }}]" class="form-control" value="{{ $score ? $score->score : '' }}" placeholder="Enter score" />
                                                             </div>
                                                         </td>
                                                         @endfor
@@ -323,6 +323,9 @@
     @endassets
     @script
     <script>
+        // Scores are kept on this device until the server confirms them (public/js/score-outbox.js)
+        ScoreOutbox.bind({ root: $wire.$el, wire: $wire, scope: @js('quiz') });
+
         window.addEventListener('openModal', event => {
             var myModal = new bootstrap.Modal(document.getElementById('reportModal'));
             myModal.show();

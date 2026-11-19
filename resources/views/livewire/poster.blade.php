@@ -81,7 +81,7 @@
                                             @endphp
                                             <div class="mb-2">
                                                 <label for="" class="text-muted small">{{$criteria->criteria}} ({{$criteria->perfect_score}} points)</label>
-                                                <input type="number" class="form-control" wire:change="saveScore({{$participant->id}},{{$criteria->id}},{{$judge->id}},$event.target.value)" value="{{ $score ? $score->score : '' }}" placeholder="Score">
+                                                <input type="number" class="form-control" data-score-args="[{{ $participant->id }},{{ $criteria->id }},{{ $judge->id }}]" value="{{ $score ? $score->score : '' }}" placeholder="Score">
                                             </div>
                                             @endforeach
                                         </td>
@@ -141,6 +141,9 @@
 </section>
 @script
 <script>
+    // Scores are kept on this device until the server confirms them (public/js/score-outbox.js)
+    ScoreOutbox.bind({ root: $wire.$el, wire: $wire, scope: @js('poster') });
+
     window.addEventListener('openModal', event => {
         var myModal = new bootstrap.Modal(document.getElementById('reportModal'));
         myModal.show();

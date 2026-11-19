@@ -1,0 +1,73 @@
+/* Score outbox: cell states, sync badge and toast (see public/js/score-outbox.js) */
+
+/* Cell states for any input that uses the outbox (Higalaay keeps its own richer styles) */
+[data-score-args].is-saving {
+    border-color: var(--app-accent, #1d4ed8);
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, .18);
+}
+[data-score-args].is-saved {
+    border-color: #198754;
+    box-shadow: 0 0 0 3px rgba(25, 135, 84, .25);
+}
+[data-score-args].is-error {
+    border-color: #dc3545;
+    background-color: #fff5f5;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, .2);
+}
+/* Saved on this device, not yet on the server */
+[data-score-args].is-pending,
+[data-score-args].is-pending:focus {
+    border-color: #d97706;
+    border-style: dashed;
+    background-color: #fffbeb;
+    box-shadow: 0 0 0 3px rgba(217, 119, 6, .22);
+}
+
+/* Floating sync badge (bottom-left so it never covers the page's own toast) */
+.outbox-badge {
+    position: fixed;
+    left: 16px;
+    bottom: 16px;
+    z-index: 1085;
+    max-width: calc(100vw - 32px);
+    padding: .5rem .9rem;
+    border-radius: 999px;
+    background: #d97706;
+    color: #fff;
+    font-size: .875rem;
+    font-weight: 600;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .2);
+    cursor: pointer;
+}
+.outbox-badge[hidden] { display: none; }
+.outbox-badge.offline { background: #475569; }
+.outbox-badge a { color: #fff; text-decoration: underline; }
+.outbox-badge .bi-arrow-repeat { display: inline-block; animation: outbox-spin 1.2s linear infinite; }
+@keyframes outbox-spin { to { transform: rotate(360deg); } }
+
+/* Toast used by pages without their own */
+.outbox-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translate(-50%, 20px);
+    z-index: 1090;
+    max-width: 90vw;
+    padding: .6rem 1rem;
+    border-radius: 8px;
+    color: #fff;
+    background: #343a40;
+    font-weight: 600;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+}
+.outbox-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.outbox-toast.warning { background: #b8860b; }
+.outbox-toast.danger { background: #dc3545; }
+.outbox-toast.success { background: #198754; }
+
+@media (prefers-reduced-motion: reduce) {
+    .outbox-badge .bi-arrow-repeat { animation: none; }
+}
