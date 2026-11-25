@@ -129,7 +129,7 @@
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h1 class="modal-title fs-5" id="exampleModalLabel">Add</h1>
+                        <h1 class="modal-title fs-5" id="exampleModalLabel">{{ $id ? 'Edit Participant' : 'Add Participant' }}</h1>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <form wire:submit.prevent="saveParticipant">
@@ -163,7 +163,7 @@
                                 <label for="category">Event Participant</label>
                                 @foreach ($categories as $item)
                                     <div class="form-check">
-                                        <input type="checkbox" class="form-check-input w-5 h-5 text-blue-600 rounded focus:ring-blue-500" wire:model="selectedCategories" value="{{ $item->category }}">
+                                        <input type="checkbox" class="form-check-input w-5 h-5 text-blue-600 rounded focus:ring-blue-500" wire:model.live="selectedCategories" value="{{ $item->category }}">
                                         <label for="flexCheckDefault">
                                             {{ $item->description }}
                                         </label>
@@ -172,10 +172,13 @@
                             </div>
                         </div>
                         <div class="modal-footer">
+                            @unless ($id)
+                                <small class="text-muted me-auto"><i class="bi bi-info-circle"></i> Form stays open for the next participant.</small>
+                            @endunless
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                             <button type="submit" class="btn btn-primary">
                                 <div wire:loading.remove wire:target="saveParticipant">
-                                    Save changes
+                                    {{ $id ? 'Save changes' : 'Save & add next' }}
                                 </div>
                                 <div wire:loading wire:target="saveParticipant">
                                     <div class="spinner-border spinner-border-sm" role="status">
@@ -313,6 +316,9 @@
             window.addEventListener('hideModal', event => {
                 var myModal = new bootstrap.Modal(document.getElementById('participantModal'));
                 myModal.show();
+            });
+            $wire.on('focusField', ({ field }) => {
+                setTimeout(() => document.getElementById(field)?.focus(), 50);
             });
             window.addEventListener('openPosterModal', event => {
                 var myModal = new bootstrap.Modal(document.getElementById('uploadPosterModal'));

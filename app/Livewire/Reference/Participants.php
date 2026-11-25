@@ -17,6 +17,8 @@ class Participants extends Component
     public $id, $participant, $school, $participant_no, $participant_id, $selectedCateg, $password, $gender, $group_name;
     public $selectedCategories = [];
     public $poster_photos;
+    /** The participant number the form last filled in automatically (null once the user types their own). */
+    public $suggestedNo;
 
     protected $rules = [
         'poster_file' => 'required|file|max:51200|mimes:jpg,png,jpeg,heic',
@@ -50,6 +52,8 @@ class Participants extends Component
             'selectedCategories.*' => 'exists:categories,category',
             'school' => 'required'
         ]);
+        $isAdding = !$this->id;
+
         $participant = $this->id ? RefParticipant::find($this->id) : new RefParticipant();
         $participant->participant = $this->participant;
         $participant->category = $this->selectedCategories;
@@ -59,17 +63,70 @@ class Participants extends Component
         $participant->group_name = trim((string) $this->group_name) ?: null;
         $participant->save();
 
-        $this->id = null;
+        if ($isAdding) {
+            // Keep the modal open for the next participant: same events, school, group and
+            // gender; blank name; participant number after the one just saved.
+            $savedName = $this->participant;
+            $savedNumber = is_numeric($this->participant_no) ? (int) $this->participant_no : null;
+
+            $this->reset('id', 'participant');
+            $this->resetValidation();
+            $this->participant_no = $this->suggestedNo = $this->nextParticipantNumber($savedNumber);
+            $this->dispatch('focusField', field: 'participantsName');
+
+            return session()->flash("status", "Saved #{$participant->participant_no} {$savedName}. Ready for the next participant.");
+        }
 
         return session()->flash("status", "Successfully saved");
     }
     public function addParticipant()
     {
-        $this->reset();
+        $this->resetExcept('selectedCateg');
+        $this->resetValidation();
+        $this->selectedCategories = $this->selectedCateg ? [$this->selectedCateg] : [];
+        $this->participant_no = $this->suggestedNo = $this->nextParticipantNumber();
         $this->dispatch('openModal');
+    }
+
+    /** While adding, re-suggest the number for the chosen events unless the user typed their own. */
+    public function updatedSelectedCategories()
+    {
+        if (!$this->id && (string) $this->participant_no === (string) $this->suggestedNo) {
+            $this->participant_no = $this->suggestedNo = $this->nextParticipantNumber();
+        }
+    }
+
+    /**
+     * Next free participant number within the selected events (all participants when none
+     * are selected): one after $after (the participant just saved) or, when opening the
+     * form, one after the highest existing number. Numbers already taken are skipped.
+     */
+    private function nextParticipantNumber(?int $after = null): int
+    {
+        $categories = array_filter((array) $this->selectedCategories);
+
+        $taken = RefParticipant::query()
+            ->when($categories, function ($query) use ($categories) {
+                $query->where(function ($q) use ($categories) {
+                    foreach ($categories as $category) {
+                        $q->orWhereJsonContains('category', $category);
+                    }
+                });
+            })
+            ->pluck('participant_no')
+            ->filter(fn ($n) => is_numeric($n))
+            ->map(fn ($n) => (int) $n)
+            ->all();
+
+        $next = $after !== null ? $after + 1 : (max($taken ?: [0]) + 1);
+        while (in_array($next, $taken, true)) {
+            $next++;
+        }
+        return $next;
     }
     public function editParticipant($id)
     {
+        $this->resetValidation();
         $participant =  RefParticipant::find($id);
         $this->participant = $participant->participant;
         $this->selectedCategories = $participant->category;

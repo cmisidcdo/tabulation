@@ -61,11 +61,33 @@ class Judges extends Component
     public function addJudge()
     {
         $this->resetExcept('search', 'selectedCateg', 'selectedStatus');
+        $this->resetValidation();
         $this->is_active = 1;
+        $this->selectedCategories = $this->selectedCateg ? [$this->selectedCateg] : [];
+        $this->nickname = $this->nextJudgeNumber();
         $this->dispatch('openModal');
+    }
+
+    /**
+     * Next free judge number: one after $after (the judge just saved) or, when opening
+     * the form, one after the highest existing number. Numbers already taken are skipped.
+     */
+    private function nextJudgeNumber(?int $after = null): int
+    {
+        $taken = RefJudge::pluck('nickname')
+            ->filter(fn ($n) => is_numeric($n))
+            ->map(fn ($n) => (int) $n)
+            ->all();
+
+        $next = $after !== null ? $after + 1 : (max($taken ?: [0]) + 1);
+        while (in_array($next, $taken, true)) {
+            $next++;
+        }
+        return $next;
     }
     public function editJudge($id)
     {
+        $this->resetValidation();
         $this->id = $id;
         $judge = RefJudge::find($id);
 
@@ -105,6 +127,8 @@ class Judges extends Component
             'is_active' => 'required|boolean',
         ]);
 
+        $isAdding = !$this->id;
+
         [$email, $isNewLogin] = DB::transaction(function () {
             $judge = RefJudge::findOrNew($this->id);
             $user = $judge->user_id ? User::find($judge->user_id) : null;
@@ -132,6 +156,20 @@ class Judges extends Component
 
             return [$user->email, $isNewLogin];
         });
+
+        if ($isAdding) {
+            // Keep the modal open and ready the form for the next judge: same events and
+            // status, blank name, and the judge number after the one just saved.
+            $savedName = $this->judge;
+            $savedNumber = is_numeric($this->nickname) ? (int) $this->nickname : null;
+
+            $this->reset('id', 'judge');
+            $this->resetValidation();
+            $this->nickname = $this->nextJudgeNumber($savedNumber);
+            $this->dispatch('focusField', field: 'judgeName');
+
+            return session()->flash('status', "Saved {$savedName} (Login: {$email} / password). Ready for the next judge.");
+        }
 
         return session()->flash('status', $isNewLogin
             ? "Successfully saved! Login: {$email} / password"

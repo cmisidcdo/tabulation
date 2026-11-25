@@ -20,11 +20,14 @@ class Criteria extends Component
     }
     public function addCriteria()
     {
-        $this->reset();
+        $this->resetExcept('selectedCateg');
+        $this->resetValidation();
+        $this->category = $this->selectedCateg ?: null;
         $this->dispatch('openModal');
     }
     public function editCriteria($id)
     {
+        $this->resetValidation();
         $this->id = $id;
         $criteria = RefCriteria::find($id);
 
@@ -43,6 +46,8 @@ class Criteria extends Component
             'category' => 'required'
         ]);
 
+        $isAdding = !$this->id;
+
         $criteria = $this->id ? RefCriteria::find($this->id) : new RefCriteria();
         $criteria->criteria = $this->criteria;
         $criteria->perfect_score = $this->perfect_score;
@@ -50,6 +55,16 @@ class Criteria extends Component
         $criteria->segment = $this->segment ?: null;
         $criteria->segment_weight = $this->segment_weight ? (int) $this->segment_weight : null;
         $criteria->save();
+
+        if ($isAdding) {
+            // Keep the modal open for the next criteria: same event and segment, blank name/score.
+            $savedName = $this->criteria;
+            $this->reset('id', 'criteria', 'perfect_score');
+            $this->resetValidation();
+            $this->dispatch('focusField', field: 'criteria');
+
+            return session()->flash('status', "Saved \"{$savedName}\". Ready for the next criteria.");
+        }
 
         return session()->flash('status', 'Sucessfully saved!');
     }

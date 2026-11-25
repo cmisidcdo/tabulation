@@ -113,7 +113,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="exampleModalLabel">Add</h1>
+                    <h1 class="modal-title fs-5" id="exampleModalLabel">{{ $id ? 'Edit Criteria' : 'Add Criteria' }}</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form wire:submit.prevent="saveCriteria">
@@ -151,10 +151,13 @@
                         </div>
                     </div>
                     <div class="modal-footer">
+                        @unless ($id)
+                            <small class="text-muted me-auto"><i class="bi bi-info-circle"></i> Form stays open for the next criteria.</small>
+                        @endunless
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button type="submit" class="btn btn-primary">
                             <div wire:loading.remove wire:target="saveCriteria">
-                                Save changes
+                                {{ $id ? 'Save changes' : 'Save & add next' }}
                             </div>
                             <div wire:loading wire:target="saveCriteria">
                                 <div class="spinner-border spinner-border-sm" role="status">
@@ -200,6 +203,9 @@
         window.addEventListener('hideModal', event => {
             var myModal = new bootstrap.Modal(document.getElementById('criteriaModal'));
             myModal.hide();
+        });
+        $wire.on('focusField', ({ field }) => {
+            setTimeout(() => document.getElementById(field)?.focus(), 50);
         });
         window.addEventListener('openDeleteModal', event => {
             var myModal = new bootstrap.Modal(document.getElementById('deleteModal'));

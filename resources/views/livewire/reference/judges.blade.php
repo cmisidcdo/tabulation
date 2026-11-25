@@ -160,7 +160,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="exampleModalLabel">{{ $id ? 'Edit' : 'Add' }}</h1>
+                    <h1 class="modal-title fs-5" id="exampleModalLabel">{{ $id ? 'Edit Judge' : 'Add Judge' }}</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form wire:submit.prevent="saveJudge">
@@ -205,10 +205,13 @@
                         </div>
                     </div>
                     <div class="modal-footer">
+                        @unless ($id)
+                            <small class="text-muted me-auto"><i class="bi bi-info-circle"></i> Form stays open for the next judge.</small>
+                        @endunless
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         <button type="submit" class="btn btn-primary">
                             <div wire:loading.remove wire:target="saveJudge">
-                                Save changes
+                                {{ $id ? 'Save changes' : 'Save & add next' }}
                             </div>
                             <div wire:loading wire:target="saveJudge">
                                 <div class="spinner-border spinner-border-sm" role="status">
@@ -253,6 +256,9 @@
         window.addEventListener('hideModal', event => {
             var myModal = bootstrap.Modal.getInstance(document.getElementById('judgeModal'));
             if (myModal) myModal.hide();
+        });
+        $wire.on('focusField', ({ field }) => {
+            setTimeout(() => document.getElementById(field)?.focus(), 50);
         });
         window.addEventListener('openDeleteModal', event => {
             var myModal = new bootstrap.Modal(document.getElementById('deleteModal'));
